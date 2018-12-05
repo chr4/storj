@@ -5,6 +5,7 @@ package satellitedb
 
 import (
 	"storj.io/storj/internal/migrate"
+	"storj.io/storj/pkg/datarepair/irreparabledb"
 	"storj.io/storj/pkg/utils"
 	dbx "storj.io/storj/satellite/satellitedb/dbx"
 )
@@ -61,6 +62,11 @@ func NewDB(databaseURL string) (*DB, error) {
 // func (db *DB) AccountingDB() accounting.DB {
 // 	return &accountingDB{db: db.db}
 // }
+
+// IrreparableDB is a getter for IrreparableDB repository
+func (db *DB) Irreparable() irreparabledb.DB {
+	return &irreparable{db: db.db}
+}
 
 // CreateTables is a method for creating all tables for database
 func (db *DB) CreateTables() error {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
 	"storj.io/storj/pkg/datarepair/irreparabledb"
@@ -29,10 +30,13 @@ type Config struct {
 // Initialize a Checker struct
 func (c Config) initialize(ctx context.Context) (Checker, error) {
 	pdb := pointerdb.LoadFromContext(ctx)
-	irrdb, err := irreparabledb.New(c.IrreparabledbURL)
-	if err != nil {
-		return nil, err
+
+	db, ok := ctx.Value("masterdb").(interface{ Irreparable() irreparabledb.DB })
+	if !ok {
+		return nil, errs.New("unable to get master db instance")
 	}
+
+	irrdb := irreparabledb.New(db.Irreparable())
 	var o pb.OverlayServer
 	x := overlay.LoadServerFromContext(ctx)
 	if x == nil {
