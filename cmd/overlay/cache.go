@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/zeebo/errs"
@@ -22,7 +23,7 @@ type cacheConfig struct {
 	DatabaseURL string `help:"the database connection string to use"`
 }
 
-func (c cacheConfig) open() (*overlay.Cache, error) {
+func (c cacheConfig) open(ctx context.Context) (*overlay.Cache, error) {
 	dburl, err := url.Parse(c.DatabaseURL)
 	if err != nil {
 		return nil, Error.Wrap(err)
@@ -49,6 +50,8 @@ func (c cacheConfig) open() (*overlay.Cache, error) {
 
 	// add logger
 	db = storelogger.New(zap.L(), db)
+
+	//ctx := context.Background()
 	sdb, ok := ctx.Value("masterdb").(interface {
 		Statdb() statdb.DB
 	})
@@ -56,5 +59,5 @@ func (c cacheConfig) open() (*overlay.Cache, error) {
 		return nil, errs.New("unable to get master db instance")
 	}
 
-	return overlay.NewOverlayCache(db, nil, sdb.StatDB()), nil
+	return overlay.NewOverlayCache(db, nil, sdb.Statdb()), nil
 }

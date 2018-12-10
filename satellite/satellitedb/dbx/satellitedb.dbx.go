@@ -18,6 +18,8 @@ import (
 	"unicode"
 
 	"github.com/lib/pq"
+
+	"github.com/mattn/go-sqlite3"
 )
 
 // Prevent conditional imports from causing build failures
@@ -283,6 +285,18 @@ CREATE TABLE irreparabledbs (
 	seg_damaged_unix_sec bigint NOT NULL,
 	repair_attempt_count bigint NOT NULL,
 	PRIMARY KEY ( segmentpath )
+);
+CREATE TABLE nodes (
+	id bytea NOT NULL,
+	audit_success_count bigint NOT NULL,
+	total_audit_count bigint NOT NULL,
+	audit_success_ratio double precision NOT NULL,
+	uptime_success_count bigint NOT NULL,
+	total_uptime_count bigint NOT NULL,
+	uptime_ratio double precision NOT NULL,
+	created_at timestamp with time zone NOT NULL,
+	updated_at timestamp with time zone NOT NULL,
+	PRIMARY KEY ( id )
 );`
 }
 
@@ -360,6 +374,18 @@ CREATE TABLE irreparabledbs (
 	seg_damaged_unix_sec INTEGER NOT NULL,
 	repair_attempt_count INTEGER NOT NULL,
 	PRIMARY KEY ( segmentpath )
+);
+CREATE TABLE nodes (
+	id BLOB NOT NULL,
+	audit_success_count INTEGER NOT NULL,
+	total_audit_count INTEGER NOT NULL,
+	audit_success_ratio REAL NOT NULL,
+	uptime_success_count INTEGER NOT NULL,
+	total_uptime_count INTEGER NOT NULL,
+	uptime_ratio REAL NOT NULL,
+	created_at TIMESTAMP NOT NULL,
+	updated_at TIMESTAMP NOT NULL,
+	PRIMARY KEY ( id )
 );`
 }
 
@@ -595,6 +621,191 @@ func (f Irreparabledb_RepairAttemptCount_Field) value() interface{} {
 
 func (Irreparabledb_RepairAttemptCount_Field) _Column() string { return "repair_attempt_count" }
 
+type Node struct {
+	Id                 []byte
+	AuditSuccessCount  int64
+	TotalAuditCount    int64
+	AuditSuccessRatio  float64
+	UptimeSuccessCount int64
+	TotalUptimeCount   int64
+	UptimeRatio        float64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+func (Node) _Table() string { return "nodes" }
+
+type Node_Update_Fields struct {
+	AuditSuccessCount  Node_AuditSuccessCount_Field
+	TotalAuditCount    Node_TotalAuditCount_Field
+	AuditSuccessRatio  Node_AuditSuccessRatio_Field
+	UptimeSuccessCount Node_UptimeSuccessCount_Field
+	TotalUptimeCount   Node_TotalUptimeCount_Field
+	UptimeRatio        Node_UptimeRatio_Field
+}
+
+type Node_Id_Field struct {
+	_set   bool
+	_value []byte
+}
+
+func Node_Id(v []byte) Node_Id_Field {
+	return Node_Id_Field{_set: true, _value: v}
+}
+
+func (f Node_Id_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_Id_Field) _Column() string { return "id" }
+
+type Node_AuditSuccessCount_Field struct {
+	_set   bool
+	_value int64
+}
+
+func Node_AuditSuccessCount(v int64) Node_AuditSuccessCount_Field {
+	return Node_AuditSuccessCount_Field{_set: true, _value: v}
+}
+
+func (f Node_AuditSuccessCount_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_AuditSuccessCount_Field) _Column() string { return "audit_success_count" }
+
+type Node_TotalAuditCount_Field struct {
+	_set   bool
+	_value int64
+}
+
+func Node_TotalAuditCount(v int64) Node_TotalAuditCount_Field {
+	return Node_TotalAuditCount_Field{_set: true, _value: v}
+}
+
+func (f Node_TotalAuditCount_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_TotalAuditCount_Field) _Column() string { return "total_audit_count" }
+
+type Node_AuditSuccessRatio_Field struct {
+	_set   bool
+	_value float64
+}
+
+func Node_AuditSuccessRatio(v float64) Node_AuditSuccessRatio_Field {
+	return Node_AuditSuccessRatio_Field{_set: true, _value: v}
+}
+
+func (f Node_AuditSuccessRatio_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_AuditSuccessRatio_Field) _Column() string { return "audit_success_ratio" }
+
+type Node_UptimeSuccessCount_Field struct {
+	_set   bool
+	_value int64
+}
+
+func Node_UptimeSuccessCount(v int64) Node_UptimeSuccessCount_Field {
+	return Node_UptimeSuccessCount_Field{_set: true, _value: v}
+}
+
+func (f Node_UptimeSuccessCount_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_UptimeSuccessCount_Field) _Column() string { return "uptime_success_count" }
+
+type Node_TotalUptimeCount_Field struct {
+	_set   bool
+	_value int64
+}
+
+func Node_TotalUptimeCount(v int64) Node_TotalUptimeCount_Field {
+	return Node_TotalUptimeCount_Field{_set: true, _value: v}
+}
+
+func (f Node_TotalUptimeCount_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_TotalUptimeCount_Field) _Column() string { return "total_uptime_count" }
+
+type Node_UptimeRatio_Field struct {
+	_set   bool
+	_value float64
+}
+
+func Node_UptimeRatio(v float64) Node_UptimeRatio_Field {
+	return Node_UptimeRatio_Field{_set: true, _value: v}
+}
+
+func (f Node_UptimeRatio_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_UptimeRatio_Field) _Column() string { return "uptime_ratio" }
+
+type Node_CreatedAt_Field struct {
+	_set   bool
+	_value time.Time
+}
+
+func Node_CreatedAt(v time.Time) Node_CreatedAt_Field {
+	return Node_CreatedAt_Field{_set: true, _value: v}
+}
+
+func (f Node_CreatedAt_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_CreatedAt_Field) _Column() string { return "created_at" }
+
+type Node_UpdatedAt_Field struct {
+	_set   bool
+	_value time.Time
+}
+
+func Node_UpdatedAt(v time.Time) Node_UpdatedAt_Field {
+	return Node_UpdatedAt_Field{_set: true, _value: v}
+}
+
+func (f Node_UpdatedAt_Field) value() interface{} {
+	if !f._set {
+		return nil
+	}
+	return f._value
+}
+
+func (Node_UpdatedAt_Field) _Column() string { return "updated_at" }
+
 func toUTC(t time.Time) time.Time {
 	return t.UTC()
 }
@@ -814,6 +1025,41 @@ func (obj *postgresImpl) Create_Irreparabledb(ctx context.Context,
 
 }
 
+func (obj *postgresImpl) Create_Node(ctx context.Context,
+	node_id Node_Id_Field,
+	node_audit_success_count Node_AuditSuccessCount_Field,
+	node_total_audit_count Node_TotalAuditCount_Field,
+	node_audit_success_ratio Node_AuditSuccessRatio_Field,
+	node_uptime_success_count Node_UptimeSuccessCount_Field,
+	node_total_uptime_count Node_TotalUptimeCount_Field,
+	node_uptime_ratio Node_UptimeRatio_Field) (
+	node *Node, err error) {
+
+	__now := obj.db.Hooks.Now().UTC()
+	__id_val := node_id.value()
+	__audit_success_count_val := node_audit_success_count.value()
+	__total_audit_count_val := node_total_audit_count.value()
+	__audit_success_ratio_val := node_audit_success_ratio.value()
+	__uptime_success_count_val := node_uptime_success_count.value()
+	__total_uptime_count_val := node_total_uptime_count.value()
+	__uptime_ratio_val := node_uptime_ratio.value()
+	__created_at_val := __now
+	__updated_at_val := __now
+
+	var __embed_stmt = __sqlbundle_Literal("INSERT INTO nodes ( id, audit_success_count, total_audit_count, audit_success_ratio, uptime_success_count, total_uptime_count, uptime_ratio, created_at, updated_at ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? ) RETURNING nodes.id, nodes.audit_success_count, nodes.total_audit_count, nodes.audit_success_ratio, nodes.uptime_success_count, nodes.total_uptime_count, nodes.uptime_ratio, nodes.created_at, nodes.updated_at")
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __id_val, __audit_success_count_val, __total_audit_count_val, __audit_success_ratio_val, __uptime_success_count_val, __total_uptime_count_val, __uptime_ratio_val, __created_at_val, __updated_at_val)
+
+	node = &Node{}
+	err = obj.driver.QueryRow(__stmt, __id_val, __audit_success_count_val, __total_audit_count_val, __audit_success_ratio_val, __uptime_success_count_val, __total_uptime_count_val, __uptime_ratio_val, __created_at_val, __updated_at_val).Scan(&node.Id, &node.AuditSuccessCount, &node.TotalAuditCount, &node.AuditSuccessRatio, &node.UptimeSuccessCount, &node.TotalUptimeCount, &node.UptimeRatio, &node.CreatedAt, &node.UpdatedAt)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return node, nil
+
+}
+
 func (obj *postgresImpl) Get_Bwagreement_By_Signature(ctx context.Context,
 	bwagreement_signature Bwagreement_Signature_Field) (
 	bwagreement *Bwagreement, err error) {
@@ -956,6 +1202,27 @@ func (obj *postgresImpl) Get_Irreparabledb_By_Segmentpath(ctx context.Context,
 
 }
 
+func (obj *postgresImpl) Get_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field) (
+	node *Node, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("SELECT nodes.id, nodes.audit_success_count, nodes.total_audit_count, nodes.audit_success_ratio, nodes.uptime_success_count, nodes.total_uptime_count, nodes.uptime_ratio, nodes.created_at, nodes.updated_at FROM nodes WHERE nodes.id = ?")
+
+	var __values []interface{}
+	__values = append(__values, node_id.value())
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	node = &Node{}
+	err = obj.driver.QueryRow(__stmt, __values...).Scan(&node.Id, &node.AuditSuccessCount, &node.TotalAuditCount, &node.AuditSuccessRatio, &node.UptimeSuccessCount, &node.TotalUptimeCount, &node.UptimeRatio, &node.CreatedAt, &node.UpdatedAt)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return node, nil
+
+}
+
 func (obj *postgresImpl) Update_Irreparabledb_By_Segmentpath(ctx context.Context,
 	irreparabledb_segmentpath Irreparabledb_Segmentpath_Field,
 	update Irreparabledb_Update_Fields) (
@@ -1011,6 +1278,72 @@ func (obj *postgresImpl) Update_Irreparabledb_By_Segmentpath(ctx context.Context
 	return irreparabledb, nil
 }
 
+func (obj *postgresImpl) Update_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field,
+	update Node_Update_Fields) (
+	node *Node, err error) {
+	var __sets = &__sqlbundle_Hole{}
+
+	var __embed_stmt = __sqlbundle_Literals{Join: "", SQLs: []__sqlbundle_SQL{__sqlbundle_Literal("UPDATE nodes SET "), __sets, __sqlbundle_Literal(" WHERE nodes.id = ? RETURNING nodes.id, nodes.audit_success_count, nodes.total_audit_count, nodes.audit_success_ratio, nodes.uptime_success_count, nodes.total_uptime_count, nodes.uptime_ratio, nodes.created_at, nodes.updated_at")}}
+
+	__sets_sql := __sqlbundle_Literals{Join: ", "}
+	var __values []interface{}
+	var __args []interface{}
+
+	if update.AuditSuccessCount._set {
+		__values = append(__values, update.AuditSuccessCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("audit_success_count = ?"))
+	}
+
+	if update.TotalAuditCount._set {
+		__values = append(__values, update.TotalAuditCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("total_audit_count = ?"))
+	}
+
+	if update.AuditSuccessRatio._set {
+		__values = append(__values, update.AuditSuccessRatio.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("audit_success_ratio = ?"))
+	}
+
+	if update.UptimeSuccessCount._set {
+		__values = append(__values, update.UptimeSuccessCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("uptime_success_count = ?"))
+	}
+
+	if update.TotalUptimeCount._set {
+		__values = append(__values, update.TotalUptimeCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("total_uptime_count = ?"))
+	}
+
+	if update.UptimeRatio._set {
+		__values = append(__values, update.UptimeRatio.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("uptime_ratio = ?"))
+	}
+
+	__now := obj.db.Hooks.Now().UTC()
+
+	__values = append(__values, __now)
+	__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("updated_at = ?"))
+
+	__args = append(__args, node_id.value())
+
+	__values = append(__values, __args...)
+	__sets.SQL = __sets_sql
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	node = &Node{}
+	err = obj.driver.QueryRow(__stmt, __values...).Scan(&node.Id, &node.AuditSuccessCount, &node.TotalAuditCount, &node.AuditSuccessRatio, &node.UptimeSuccessCount, &node.TotalUptimeCount, &node.UptimeRatio, &node.CreatedAt, &node.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return node, nil
+}
+
 func (obj *postgresImpl) Delete_Bwagreement_By_Signature(ctx context.Context,
 	bwagreement_signature Bwagreement_Signature_Field) (
 	deleted bool, err error) {
@@ -1063,6 +1396,32 @@ func (obj *postgresImpl) Delete_Irreparabledb_By_Segmentpath(ctx context.Context
 
 }
 
+func (obj *postgresImpl) Delete_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field) (
+	deleted bool, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("DELETE FROM nodes WHERE nodes.id = ?")
+
+	var __values []interface{}
+	__values = append(__values, node_id.value())
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	__res, err := obj.driver.Exec(__stmt, __values...)
+	if err != nil {
+		return false, obj.makeErr(err)
+	}
+
+	__count, err := __res.RowsAffected()
+	if err != nil {
+		return false, obj.makeErr(err)
+	}
+
+	return __count > 0, nil
+
+}
+
 func (impl postgresImpl) isConstraintError(err error) (
 	constraint string, ok bool) {
 	if e, ok := err.(*pq.Error); ok {
@@ -1076,6 +1435,16 @@ func (impl postgresImpl) isConstraintError(err error) (
 func (obj *postgresImpl) deleteAll(ctx context.Context) (count int64, err error) {
 	var __res sql.Result
 	var __count int64
+	__res, err = obj.driver.Exec("DELETE FROM nodes;")
+	if err != nil {
+		return 0, obj.makeErr(err)
+	}
+
+	__count, err = __res.RowsAffected()
+	if err != nil {
+		return 0, obj.makeErr(err)
+	}
+	count += __count
 	__res, err = obj.driver.Exec("DELETE FROM irreparabledbs;")
 	if err != nil {
 		return 0, obj.makeErr(err)
@@ -1155,6 +1524,44 @@ func (obj *sqlite3Impl) Create_Irreparabledb(ctx context.Context,
 		return nil, obj.makeErr(err)
 	}
 	return obj.getLastIrreparabledb(ctx, __pk)
+
+}
+
+func (obj *sqlite3Impl) Create_Node(ctx context.Context,
+	node_id Node_Id_Field,
+	node_audit_success_count Node_AuditSuccessCount_Field,
+	node_total_audit_count Node_TotalAuditCount_Field,
+	node_audit_success_ratio Node_AuditSuccessRatio_Field,
+	node_uptime_success_count Node_UptimeSuccessCount_Field,
+	node_total_uptime_count Node_TotalUptimeCount_Field,
+	node_uptime_ratio Node_UptimeRatio_Field) (
+	node *Node, err error) {
+
+	__now := obj.db.Hooks.Now().UTC()
+	__id_val := node_id.value()
+	__audit_success_count_val := node_audit_success_count.value()
+	__total_audit_count_val := node_total_audit_count.value()
+	__audit_success_ratio_val := node_audit_success_ratio.value()
+	__uptime_success_count_val := node_uptime_success_count.value()
+	__total_uptime_count_val := node_total_uptime_count.value()
+	__uptime_ratio_val := node_uptime_ratio.value()
+	__created_at_val := __now
+	__updated_at_val := __now
+
+	var __embed_stmt = __sqlbundle_Literal("INSERT INTO nodes ( id, audit_success_count, total_audit_count, audit_success_ratio, uptime_success_count, total_uptime_count, uptime_ratio, created_at, updated_at ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? )")
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __id_val, __audit_success_count_val, __total_audit_count_val, __audit_success_ratio_val, __uptime_success_count_val, __total_uptime_count_val, __uptime_ratio_val, __created_at_val, __updated_at_val)
+
+	__res, err := obj.driver.Exec(__stmt, __id_val, __audit_success_count_val, __total_audit_count_val, __audit_success_ratio_val, __uptime_success_count_val, __total_uptime_count_val, __uptime_ratio_val, __created_at_val, __updated_at_val)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	__pk, err := __res.LastInsertId()
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return obj.getLastNode(ctx, __pk)
 
 }
 
@@ -1300,6 +1707,27 @@ func (obj *sqlite3Impl) Get_Irreparabledb_By_Segmentpath(ctx context.Context,
 
 }
 
+func (obj *sqlite3Impl) Get_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field) (
+	node *Node, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("SELECT nodes.id, nodes.audit_success_count, nodes.total_audit_count, nodes.audit_success_ratio, nodes.uptime_success_count, nodes.total_uptime_count, nodes.uptime_ratio, nodes.created_at, nodes.updated_at FROM nodes WHERE nodes.id = ?")
+
+	var __values []interface{}
+	__values = append(__values, node_id.value())
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	node = &Node{}
+	err = obj.driver.QueryRow(__stmt, __values...).Scan(&node.Id, &node.AuditSuccessCount, &node.TotalAuditCount, &node.AuditSuccessRatio, &node.UptimeSuccessCount, &node.TotalUptimeCount, &node.UptimeRatio, &node.CreatedAt, &node.UpdatedAt)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return node, nil
+
+}
+
 func (obj *sqlite3Impl) Update_Irreparabledb_By_Segmentpath(ctx context.Context,
 	irreparabledb_segmentpath Irreparabledb_Segmentpath_Field,
 	update Irreparabledb_Update_Fields) (
@@ -1365,6 +1793,82 @@ func (obj *sqlite3Impl) Update_Irreparabledb_By_Segmentpath(ctx context.Context,
 	return irreparabledb, nil
 }
 
+func (obj *sqlite3Impl) Update_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field,
+	update Node_Update_Fields) (
+	node *Node, err error) {
+	var __sets = &__sqlbundle_Hole{}
+
+	var __embed_stmt = __sqlbundle_Literals{Join: "", SQLs: []__sqlbundle_SQL{__sqlbundle_Literal("UPDATE nodes SET "), __sets, __sqlbundle_Literal(" WHERE nodes.id = ?")}}
+
+	__sets_sql := __sqlbundle_Literals{Join: ", "}
+	var __values []interface{}
+	var __args []interface{}
+
+	if update.AuditSuccessCount._set {
+		__values = append(__values, update.AuditSuccessCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("audit_success_count = ?"))
+	}
+
+	if update.TotalAuditCount._set {
+		__values = append(__values, update.TotalAuditCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("total_audit_count = ?"))
+	}
+
+	if update.AuditSuccessRatio._set {
+		__values = append(__values, update.AuditSuccessRatio.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("audit_success_ratio = ?"))
+	}
+
+	if update.UptimeSuccessCount._set {
+		__values = append(__values, update.UptimeSuccessCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("uptime_success_count = ?"))
+	}
+
+	if update.TotalUptimeCount._set {
+		__values = append(__values, update.TotalUptimeCount.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("total_uptime_count = ?"))
+	}
+
+	if update.UptimeRatio._set {
+		__values = append(__values, update.UptimeRatio.value())
+		__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("uptime_ratio = ?"))
+	}
+
+	__now := obj.db.Hooks.Now().UTC()
+
+	__values = append(__values, __now)
+	__sets_sql.SQLs = append(__sets_sql.SQLs, __sqlbundle_Literal("updated_at = ?"))
+
+	__args = append(__args, node_id.value())
+
+	__values = append(__values, __args...)
+	__sets.SQL = __sets_sql
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	node = &Node{}
+	_, err = obj.driver.Exec(__stmt, __values...)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+
+	var __embed_stmt_get = __sqlbundle_Literal("SELECT nodes.id, nodes.audit_success_count, nodes.total_audit_count, nodes.audit_success_ratio, nodes.uptime_success_count, nodes.total_uptime_count, nodes.uptime_ratio, nodes.created_at, nodes.updated_at FROM nodes WHERE nodes.id = ?")
+
+	var __stmt_get = __sqlbundle_Render(obj.dialect, __embed_stmt_get)
+	obj.logStmt("(IMPLIED) "+__stmt_get, __args...)
+
+	err = obj.driver.QueryRow(__stmt_get, __args...).Scan(&node.Id, &node.AuditSuccessCount, &node.TotalAuditCount, &node.AuditSuccessRatio, &node.UptimeSuccessCount, &node.TotalUptimeCount, &node.UptimeRatio, &node.CreatedAt, &node.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return node, nil
+}
+
 func (obj *sqlite3Impl) Delete_Bwagreement_By_Signature(ctx context.Context,
 	bwagreement_signature Bwagreement_Signature_Field) (
 	deleted bool, err error) {
@@ -1399,6 +1903,32 @@ func (obj *sqlite3Impl) Delete_Irreparabledb_By_Segmentpath(ctx context.Context,
 
 	var __values []interface{}
 	__values = append(__values, irreparabledb_segmentpath.value())
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, __values...)
+
+	__res, err := obj.driver.Exec(__stmt, __values...)
+	if err != nil {
+		return false, obj.makeErr(err)
+	}
+
+	__count, err := __res.RowsAffected()
+	if err != nil {
+		return false, obj.makeErr(err)
+	}
+
+	return __count > 0, nil
+
+}
+
+func (obj *sqlite3Impl) Delete_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field) (
+	deleted bool, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("DELETE FROM nodes WHERE nodes.id = ?")
+
+	var __values []interface{}
+	__values = append(__values, node_id.value())
 
 	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
 	obj.logStmt(__stmt, __values...)
@@ -1453,6 +1983,24 @@ func (obj *sqlite3Impl) getLastIrreparabledb(ctx context.Context,
 
 }
 
+func (obj *sqlite3Impl) getLastNode(ctx context.Context,
+	pk int64) (
+	node *Node, err error) {
+
+	var __embed_stmt = __sqlbundle_Literal("SELECT nodes.id, nodes.audit_success_count, nodes.total_audit_count, nodes.audit_success_ratio, nodes.uptime_success_count, nodes.total_uptime_count, nodes.uptime_ratio, nodes.created_at, nodes.updated_at FROM nodes WHERE _rowid_ = ?")
+
+	var __stmt = __sqlbundle_Render(obj.dialect, __embed_stmt)
+	obj.logStmt(__stmt, pk)
+
+	node = &Node{}
+	err = obj.driver.QueryRow(__stmt, pk).Scan(&node.Id, &node.AuditSuccessCount, &node.TotalAuditCount, &node.AuditSuccessRatio, &node.UptimeSuccessCount, &node.TotalUptimeCount, &node.UptimeRatio, &node.CreatedAt, &node.UpdatedAt)
+	if err != nil {
+		return nil, obj.makeErr(err)
+	}
+	return node, nil
+
+}
+
 func (impl sqlite3Impl) isConstraintError(err error) (
 	constraint string, ok bool) {
 	if e, ok := err.(sqlite3.Error); ok {
@@ -1471,6 +2019,16 @@ func (impl sqlite3Impl) isConstraintError(err error) (
 func (obj *sqlite3Impl) deleteAll(ctx context.Context) (count int64, err error) {
 	var __res sql.Result
 	var __count int64
+	__res, err = obj.driver.Exec("DELETE FROM nodes;")
+	if err != nil {
+		return 0, obj.makeErr(err)
+	}
+
+	__count, err = __res.RowsAffected()
+	if err != nil {
+		return 0, obj.makeErr(err)
+	}
+	count += __count
 	__res, err = obj.driver.Exec("DELETE FROM irreparabledbs;")
 	if err != nil {
 		return 0, obj.makeErr(err)
@@ -1584,6 +2142,23 @@ func (rx *Rx) Create_Irreparabledb(ctx context.Context,
 
 }
 
+func (rx *Rx) Create_Node(ctx context.Context,
+	node_id Node_Id_Field,
+	node_audit_success_count Node_AuditSuccessCount_Field,
+	node_total_audit_count Node_TotalAuditCount_Field,
+	node_audit_success_ratio Node_AuditSuccessRatio_Field,
+	node_uptime_success_count Node_UptimeSuccessCount_Field,
+	node_total_uptime_count Node_TotalUptimeCount_Field,
+	node_uptime_ratio Node_UptimeRatio_Field) (
+	node *Node, err error) {
+	var tx *Tx
+	if tx, err = rx.getTx(ctx); err != nil {
+		return
+	}
+	return tx.Create_Node(ctx, node_id, node_audit_success_count, node_total_audit_count, node_audit_success_ratio, node_uptime_success_count, node_total_uptime_count, node_uptime_ratio)
+
+}
+
 func (rx *Rx) Delete_Bwagreement_By_Signature(ctx context.Context,
 	bwagreement_signature Bwagreement_Signature_Field) (
 	deleted bool, err error) {
@@ -1604,6 +2179,16 @@ func (rx *Rx) Delete_Irreparabledb_By_Segmentpath(ctx context.Context,
 	return tx.Delete_Irreparabledb_By_Segmentpath(ctx, irreparabledb_segmentpath)
 }
 
+func (rx *Rx) Delete_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field) (
+	deleted bool, err error) {
+	var tx *Tx
+	if tx, err = rx.getTx(ctx); err != nil {
+		return
+	}
+	return tx.Delete_Node_By_Id(ctx, node_id)
+}
+
 func (rx *Rx) Get_Bwagreement_By_Signature(ctx context.Context,
 	bwagreement_signature Bwagreement_Signature_Field) (
 	bwagreement *Bwagreement, err error) {
@@ -1622,6 +2207,16 @@ func (rx *Rx) Get_Irreparabledb_By_Segmentpath(ctx context.Context,
 		return
 	}
 	return tx.Get_Irreparabledb_By_Segmentpath(ctx, irreparabledb_segmentpath)
+}
+
+func (rx *Rx) Get_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field) (
+	node *Node, err error) {
+	var tx *Tx
+	if tx, err = rx.getTx(ctx); err != nil {
+		return
+	}
+	return tx.Get_Node_By_Id(ctx, node_id)
 }
 
 func (rx *Rx) Limited_Bwagreement(ctx context.Context,
@@ -1645,6 +2240,17 @@ func (rx *Rx) Update_Irreparabledb_By_Segmentpath(ctx context.Context,
 	return tx.Update_Irreparabledb_By_Segmentpath(ctx, irreparabledb_segmentpath, update)
 }
 
+func (rx *Rx) Update_Node_By_Id(ctx context.Context,
+	node_id Node_Id_Field,
+	update Node_Update_Fields) (
+	node *Node, err error) {
+	var tx *Tx
+	if tx, err = rx.getTx(ctx); err != nil {
+		return
+	}
+	return tx.Update_Node_By_Id(ctx, node_id, update)
+}
+
 type Methods interface {
 	All_Bwagreement(ctx context.Context) (
 		rows []*Bwagreement, err error)
@@ -1666,12 +2272,26 @@ type Methods interface {
 		irreparabledb_repair_attempt_count Irreparabledb_RepairAttemptCount_Field) (
 		irreparabledb *Irreparabledb, err error)
 
+	Create_Node(ctx context.Context,
+		node_id Node_Id_Field,
+		node_audit_success_count Node_AuditSuccessCount_Field,
+		node_total_audit_count Node_TotalAuditCount_Field,
+		node_audit_success_ratio Node_AuditSuccessRatio_Field,
+		node_uptime_success_count Node_UptimeSuccessCount_Field,
+		node_total_uptime_count Node_TotalUptimeCount_Field,
+		node_uptime_ratio Node_UptimeRatio_Field) (
+		node *Node, err error)
+
 	Delete_Bwagreement_By_Signature(ctx context.Context,
 		bwagreement_signature Bwagreement_Signature_Field) (
 		deleted bool, err error)
 
 	Delete_Irreparabledb_By_Segmentpath(ctx context.Context,
 		irreparabledb_segmentpath Irreparabledb_Segmentpath_Field) (
+		deleted bool, err error)
+
+	Delete_Node_By_Id(ctx context.Context,
+		node_id Node_Id_Field) (
 		deleted bool, err error)
 
 	Get_Bwagreement_By_Signature(ctx context.Context,
@@ -1682,6 +2302,10 @@ type Methods interface {
 		irreparabledb_segmentpath Irreparabledb_Segmentpath_Field) (
 		irreparabledb *Irreparabledb, err error)
 
+	Get_Node_By_Id(ctx context.Context,
+		node_id Node_Id_Field) (
+		node *Node, err error)
+
 	Limited_Bwagreement(ctx context.Context,
 		limit int, offset int64) (
 		rows []*Bwagreement, err error)
@@ -1690,6 +2314,11 @@ type Methods interface {
 		irreparabledb_segmentpath Irreparabledb_Segmentpath_Field,
 		update Irreparabledb_Update_Fields) (
 		irreparabledb *Irreparabledb, err error)
+
+	Update_Node_By_Id(ctx context.Context,
+		node_id Node_Id_Field,
+		update Node_Update_Fields) (
+		node *Node, err error)
 }
 
 type TxMethods interface {
