@@ -35,7 +35,7 @@ type Node struct {
 	Listener  net.Listener
 	Provider  *provider.Provider
 	Kademlia  *kademlia.Kademlia
-	StatDB    *statdb.StatDB
+	StatDB    statdb.DB
 	Overlay   *overlay.Cache
 
 	Dependencies []io.Closer
@@ -156,10 +156,13 @@ func (node *Node) initOverlay(planet *Planet) error {
 	node.Kademlia = kad
 
 	dbPath := fmt.Sprintf("file:memdb%d?mode=memory&cache=shared", rand.Int63())
-	sdb, err := statdb.NewStatDB("sqlite3", dbPath, zap.NewNop())
-	if err != nil {
-		return err
+	sdb, ok := ctx.Value("masterdb").(interface {
+		Statdb() statdb.DB
+	})
+	if !ok {
+		return nil, errs.New("unable to get master db instance")
 	}
+
 	node.StatDB = sdb
 
 	node.Overlay = overlay.NewOverlayCache(teststore.New(), node.Kademlia, node.StatDB)

@@ -6,6 +6,7 @@ package main
 import (
 	"net/url"
 
+	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
 	"storj.io/storj/pkg/overlay"
@@ -28,7 +29,6 @@ func (c cacheConfig) open() (*overlay.Cache, error) {
 	}
 
 	var db storage.KeyValueStore
-	var sdb *statdb.StatDB
 
 	switch dburl.Scheme {
 	case "bolt":
@@ -49,10 +49,12 @@ func (c cacheConfig) open() (*overlay.Cache, error) {
 
 	// add logger
 	db = storelogger.New(zap.L(), db)
-	sdb, err = statdb.NewStatDB("postgres", dburl.String(), zap.L())
-	if err != nil {
-		return nil, Error.New("statdb error: %s", err)
+	sdb, ok := ctx.Value("masterdb").(interface {
+		Statdb() statdb.DB
+	})
+	if !ok {
+		return nil, errs.New("unable to get master db instance")
 	}
 
-	return overlay.NewOverlayCache(db, nil, sdb), nil
+	return overlay.NewOverlayCache(db, nil, sdb.StatDB()), nil
 }
