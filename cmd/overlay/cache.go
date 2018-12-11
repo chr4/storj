@@ -53,11 +53,11 @@ func (c cacheConfig) open(ctx context.Context) (*overlay.Cache, error) {
 
 	//ctx := context.Background()
 	sdb, ok := ctx.Value("masterdb").(interface {
-		Statdb() statdb.DB
+		StatDB() statdb.DB
 	})
 	if !ok {
 		return nil, errs.New("unable to get master db instance")
 	}
 
-	return overlay.NewOverlayCache(db, nil, sdb.Statdb()), nil
+	return overlay.NewOverlayCache(db, nil, sdb.StatDB()), nil
 }
