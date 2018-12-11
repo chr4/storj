@@ -71,15 +71,11 @@ type FindInvalidNodesResponse struct {
 
 // UpdateRequest is a statdb update request message
 type UpdateRequest struct {
-	Node *pb.Node
-}
-
-//GetNode returns the node info
-func (m *UpdateRequest) GetNode() *pb.Node {
-	if m != nil {
-		return m.Node
-	}
-	return nil
+	Node               storj.NodeID
+	UpdateAuditSuccess bool
+	AuditSuccess       bool
+	UpdateUptime       bool
+	IsUp               bool
 }
 
 // UpdateRequest is a statdb update response message
@@ -125,17 +121,17 @@ type UpdateAuditSuccessResponse struct {
 
 // UpdateBatchRequest is a statdb update batch request message
 type UpdateBatchRequest struct {
-	NodeList []*pb.Node
+	NodeList []*UpdateRequest
 }
 
 // UpdateBatchResponse is a statdb update batch response message
 type UpdateBatchResponse struct {
 	StatsList   []*pb.NodeStats
-	FailedNodes []*pb.Node
+	FailedNodes []*UpdateRequest
 }
 
 // GetFailedNodes returns failed node list
-func (m *UpdateBatchResponse) GetFailedNodes() []*pb.Node {
+func (m *UpdateBatchResponse) GetFailedNodes() []*UpdateRequest {
 	if m != nil {
 		return m.FailedNodes
 	}

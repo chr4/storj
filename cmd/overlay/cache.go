@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"storj.io/storj/pkg/overlay"
-	"storj.io/storj/pkg/statdb"
+	"storj.io/storj/satellite/satellitedb"
 	"storj.io/storj/storage"
 	"storj.io/storj/storage/boltdb"
 	"storj.io/storj/storage/redis"
@@ -51,11 +51,8 @@ func (c cacheConfig) open(ctx context.Context) (*overlay.Cache, error) {
 	// add logger
 	db = storelogger.New(zap.L(), db)
 
-	//ctx := context.Background()
-	sdb, ok := ctx.Value("masterdb").(interface {
-		StatDB() statdb.DB
-	})
-	if !ok {
+	sdb, err := satellitedb.NewInMemory()
+	if err != nil {
 		return nil, errs.New("unable to get master db instance")
 	}
 
