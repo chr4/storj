@@ -445,9 +445,9 @@ func (cache *overlaycache) Reliable(ctx context.Context, criteria *overlay.NodeC
 	// get reliable and online nodes
 	rows, err := cache.db.Query(cache.db.Rebind(`
 		SELECT id FROM nodes
-		WHERE audit_success_ratio >= ? AND uptime_ratio >= ? 
+		WHERE NOT disqualified
 		  AND last_contact_success > ? AND last_contact_success > last_contact_failure`),
-		criteria.AuditSuccessRatio, criteria.UptimeSuccessRatio, time.Now().Add(-criteria.OnlineWindow))
+		time.Now().Add(-criteria.OnlineWindow))
 	if err != nil {
 		return nil, err
 	}
