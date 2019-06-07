@@ -15,6 +15,7 @@ import (
 	"storj.io/storj/internal/migrate"
 	"storj.io/storj/pkg/pb"
 	"storj.io/storj/satellite/console"
+	"storj.io/storj/satellite/satellitedb/pbold"
 )
 
 // ErrMigrate is for tracking migration errors
@@ -221,7 +222,7 @@ func (db *DB) PostgresMigration() *migrate.Migration {
 									return ErrMigrate.Wrap(err)
 								}
 
-								var rba pb.Order
+								var rba pbold.Order
 								if err := proto.Unmarshal(data, &rba); err != nil {
 									return ErrMigrate.Wrap(err)
 								}
@@ -641,6 +642,146 @@ func (db *DB) PostgresMigration() *migrate.Migration {
 						created_at timestamp with time zone NOT NULL,
 						PRIMARY KEY ( secret ),
 						UNIQUE ( owner_id )
+					);`,
+				},
+			},
+			{
+				Description: "Adds pending_audits table, adds 'contained' column to nodes table",
+				Version:     20,
+				Action: migrate.SQL{
+					`ALTER TABLE nodes ADD contained boolean;
+					UPDATE nodes SET contained = false;
+					ALTER TABLE nodes ALTER COLUMN contained SET NOT NULL;`,
+
+					`CREATE TABLE pending_audits (
+						node_id bytea NOT NULL,
+						piece_id bytea NOT NULL,
+						stripe_index bigint NOT NULL,
+						share_size bigint NOT NULL,
+						expected_share_hash bytea NOT NULL,
+						reverify_count bigint NOT NULL,
+						PRIMARY KEY ( node_id )
+					);`,
+				},
+			},
+			{
+				Description: "Add last_ip column and index",
+				Version:     21,
+				Action: migrate.SQL{
+					`ALTER TABLE nodes ADD last_ip TEXT;
+					UPDATE nodes SET last_ip = '';
+					ALTER TABLE nodes ALTER COLUMN last_ip SET NOT NULL;
+					CREATE INDEX IF NOT EXISTS node_last_ip ON nodes (last_ip)`,
+				},
+			},
+			{
+				Description: "Create new tables for free credits program",
+				Version:     22,
+				Action: migrate.SQL{`
+					CREATE TABLE offers (
+						id serial NOT NULL,
+						name text NOT NULL,
+						description text NOT NULL,
+						type integer NOT NULL,
+						credit_in_cents integer NOT NULL,
+						award_credit_duration_days integer NOT NULL,
+						invitee_credit_duration_days integer NOT NULL,
+						redeemable_cap integer NOT NULL,
+						num_redeemed integer NOT NULL,
+						expires_at timestamp with time zone,
+						created_at timestamp with time zone NOT NULL,
+						status integer NOT NULL,
+						PRIMARY KEY ( id )
+					);`,
+				},
+			},
+			{
+				Description: "Drops and recreates api key table to handle macaroons and adds revocation table",
+				Version:     23,
+				Action: migrate.SQL{
+					`DROP TABLE api_keys CASCADE`,
+					`CREATE TABLE api_keys (
+						id bytea NOT NULL,
+						project_id bytea NOT NULL REFERENCES projects( id ) ON DELETE CASCADE,
+						head bytea NOT NULL,
+						name text NOT NULL,
+						secret bytea NOT NULL,
+						created_at timestamp with time zone NOT NULL,
+						PRIMARY KEY ( id ),
+						UNIQUE ( head ),
+						UNIQUE ( name, project_id )
+					);`,
+				},
+			},
+			{
+				Description: "Add usage_limit column to projects table",
+				Version:     24,
+				Action: migrate.SQL{
+					`ALTER TABLE projects ADD usage_limit bigint NOT NULL DEFAULT 0;`,
+				},
+			},
+			{
+				Description: "Add disqualified column to nodes table",
+				Version:     25,
+				Action: migrate.SQL{
+					`ALTER TABLE nodes ADD disqualified boolean NOT NULL DEFAULT false;`,
+				},
+			},
+			{
+				Description: "Add invitee_credit_in_gb and award_credit_in_gb columns, delete type and credit_in_cents columns",
+				Version:     26,
+				Action: migrate.SQL{
+					`ALTER TABLE offers DROP COLUMN credit_in_cents;`,
+					`ALTER TABLE offers ADD COLUMN award_credit_in_cents integer NOT NULL DEFAULT 0;`,
+					`ALTER TABLE offers ADD COLUMN invitee_credit_in_cents integer NOT NULL DEFAULT 0;`,
+					`ALTER TABLE offers ALTER COLUMN expires_at SET NOT NULL;`,
+				},
+			},
+			{
+				Description: "Create value attribution table",
+				Version:     27,
+				Action: migrate.SQL{
+					`CREATE TABLE value_attributions (
+						bucket_id bytea NOT NULL,
+						partner_id bytea NOT NULL,
+						last_updated timestamp NOT NULL,
+						PRIMARY KEY ( bucket_id )
+					)`,
+				},
+			},
+			{
+				Description: "Remove agreements table",
+				Version:     28,
+				Action: migrate.SQL{
+					`DROP TABLE bwagreements`,
+				},
+			},
+			{
+				Description: "Add userpaymentinfos, projectpaymentinfos, projectinvoicestamps",
+				Version:     29,
+				Action: migrate.SQL{
+					`CREATE TABLE user_payments (
+						user_id bytea NOT NULL REFERENCES users( id ) ON DELETE CASCADE,
+						customer_id bytea NOT NULL,
+						created_at timestamp with time zone NOT NULL,
+						PRIMARY KEY ( user_id ),
+						UNIQUE ( customer_id )
+					);`,
+					`CREATE TABLE project_payments (
+						project_id bytea NOT NULL REFERENCES projects( id ) ON DELETE CASCADE,
+						payer_id bytea NOT NULL REFERENCES user_payments( user_id ) ON DELETE CASCADE,
+						payment_method_id bytea NOT NULL,
+						created_at timestamp with time zone NOT NULL,
+						PRIMARY KEY ( project_id )
+					);`,
+					`CREATE TABLE project_invoice_stamps (
+						project_id bytea NOT NULL REFERENCES projects( id ) ON DELETE CASCADE,
+						invoice_id bytea NOT NULL,
+						start_date timestamp with time zone NOT NULL,
+						end_date timestamp with time zone NOT NULL,
+						created_at timestamp with time zone NOT NULL,
+						PRIMARY KEY ( project_id, start_date, end_date ),
+						UNIQUE ( invoice_id )
 					);`,
 				},
 			},

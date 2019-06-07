@@ -124,13 +124,15 @@ func TestKademliaFindNear(t *testing.T) {
 		sort.Ints(counts)
 		require.Equal(t, counts[0], len(results))
 		for i, result := range results {
-			require.Equal(t, (*result).Id.String(), expectedIDs[i].String(), fmt.Sprintf("item %d", i))
+			require.Equal(t, result.Id.String(), expectedIDs[i].String(), fmt.Sprintf("item %d", i))
 		}
 	}
-	for _, testNodeCount := range []int{0, 1, 10, 100} {
+	for _, nodeodeCount := range []int{0, 1, 10, 100} {
+		testNodeCount := nodeodeCount
 		for _, limit := range []int{0, 1, 10, 100} {
-			t.Run(fmt.Sprintf("test %d %d", testNodeCount, limit),
-				func(t *testing.T) { testFunc(t, testNodeCount, limit) })
+			l := limit
+			t.Run(fmt.Sprintf("test %d %d", testNodeCount, l),
+				func(t *testing.T) { testFunc(t, testNodeCount, l) })
 		}
 	}
 }
@@ -165,14 +167,15 @@ func TestConnectionSuccess(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		t.Run(c.testID, func(t *testing.T) {
-			err := rt.ConnectionSuccess(c.node)
+		testCase := c
+		t.Run(testCase.testID, func(t *testing.T) {
+			err := rt.ConnectionSuccess(testCase.node)
 			assert.NoError(t, err)
-			v, err := rt.nodeBucketDB.Get(c.id.Bytes())
+			v, err := rt.nodeBucketDB.Get(ctx, testCase.id.Bytes())
 			assert.NoError(t, err)
 			n, err := unmarshalNodes([]storage.Value{v})
 			assert.NoError(t, err)
-			assert.Equal(t, c.address.Address, n[0].Address.Address)
+			assert.Equal(t, testCase.address.Address, n[0].Address.Address)
 		})
 	}
 }
@@ -187,7 +190,7 @@ func TestConnectionFailed(t *testing.T) {
 	defer ctx.Check(rt.Close)
 	err := rt.ConnectionFailed(node)
 	assert.NoError(t, err)
-	v, err := rt.nodeBucketDB.Get(id.Bytes())
+	v, err := rt.nodeBucketDB.Get(ctx, id.Bytes())
 	assert.Error(t, err)
 	assert.Nil(t, v)
 }
@@ -201,7 +204,7 @@ func TestSetBucketTimestamp(t *testing.T) {
 	defer ctx.Check(rt.Close)
 	now := time.Now().UTC()
 
-	err := rt.createOrUpdateKBucket(keyToBucketID(id.Bytes()), now)
+	err := rt.createOrUpdateKBucket(ctx, keyToBucketID(id.Bytes()), now)
 	assert.NoError(t, err)
 	ti, err := rt.GetBucketTimestamp(id.Bytes())
 	assert.Equal(t, now, ti)
@@ -222,7 +225,7 @@ func TestGetBucketTimestamp(t *testing.T) {
 	rt := createRoutingTable(id)
 	defer ctx.Check(rt.Close)
 	now := time.Now().UTC()
-	err := rt.createOrUpdateKBucket(keyToBucketID(id.Bytes()), now)
+	err := rt.createOrUpdateKBucket(ctx, keyToBucketID(id.Bytes()), now)
 	assert.NoError(t, err)
 	ti, err := rt.GetBucketTimestamp(id.Bytes())
 	assert.Equal(t, now, ti)

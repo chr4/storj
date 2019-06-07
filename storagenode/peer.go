@@ -9,6 +9,7 @@ import (
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	monkit "gopkg.in/spacemonkeygo/monkit.v2"
 
 	"storj.io/storj/internal/errs2"
 	"storj.io/storj/internal/version"
@@ -30,6 +31,10 @@ import (
 	"storj.io/storj/storagenode/pieces"
 	"storj.io/storj/storagenode/piecestore"
 	"storj.io/storj/storagenode/trust"
+)
+
+var (
+	mon = monkit.Package()
 )
 
 // DB is the master database for Storage Node
@@ -243,13 +248,15 @@ func New(log *zap.Logger, full *identity.FullIdentity, db DB, config Config, ver
 		)
 	}
 
-	peer.Collector = collector.NewService(peer.Log.Named("collector"), peer.Storage2.Store, peer.DB.PieceInfo(), config.Collector)
+	peer.Collector = collector.NewService(peer.Log.Named("collector"), peer.Storage2.Store, peer.DB.PieceInfo(), peer.DB.UsedSerials(), config.Collector)
 
 	return peer, nil
 }
 
 // Run runs storage node until it's either closed or it errors.
-func (peer *Peer) Run(ctx context.Context) error {
+func (peer *Peer) Run(ctx context.Context) (err error) {
+	defer mon.Task()(&ctx)(&err)
+
 	group, ctx := errgroup.WithContext(ctx)
 
 	group.Go(func() error {

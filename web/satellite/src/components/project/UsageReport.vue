@@ -32,18 +32,18 @@
 					<h2>{{egress}}</h2>
 				</div>
 				<div class="usage-report-container__main-area__info-area__item">
-					<h1>Objects per Hour</h1>
+					<h1>Object Hours</h1>
 					<h2>{{objectsCount}}</h2>
 				</div>
 			</div>
 			<div class="usage-report-container__main-area__footer">
-				<p>Current Roll Up Period <b>{{dateRange.startDate.toLocaleDateString("en-US")}}</b> to <b>{{dateRange.endDate.toLocaleDateString("en-US")}}</b></p>
+				<p>Current Roll Up Period <b>{{toLocaleDateString(startDate)}}</b> to <b>{{toLocaleDateString(endDate)}}</b></p>
 				<div class="usage-report-container__main-area__footer__report-area">
 					<p>Download Advanced Report</p>
 					<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" @click.prevent="onReportClick">
-						<rect width="40" height="40" rx="4" fill="#E2ECF7"/>
-						<path d="M25.6491 19.2809L21.2192 23.5281C20.891 23.8427 20.3988 24 20.0707 24C19.7425 24 19.2503 23.8427 19.0862 23.5281L14.4922 19.2809C13.8359 18.6517 13.8359 17.8652 14.4922 17.236C14.8204 16.9213 15.1485 16.9213 15.6407 16.9213C15.9689 16.9213 16.4611 17.0787 16.6252 17.3933L18.594 19.1236L18.594 11.4157C18.594 10.6292 19.2503 10 20.0707 10C20.891 10 21.5473 10.6292 21.5473 11.4157L21.5473 19.1236L23.5162 17.236C23.6803 16.9213 24.1725 16.9213 24.5006 16.9213C24.8288 16.9213 25.321 17.0787 25.4851 17.3933C26.1414 17.8652 26.1414 18.809 25.6491 19.2809Z" fill="#2683FF"/>
-						<rect x="11" y="28" width="18" height="2" rx="1" fill="#2683FF"/>
+						<rect class="background" width="40" height="40" rx="4"/>
+						<path class="blue" d="M25.6491 19.2809L21.2192 23.5281C20.891 23.8427 20.3988 24 20.0707 24C19.7425 24 19.2503 23.8427 19.0862 23.5281L14.4922 19.2809C13.8359 18.6517 13.8359 17.8652 14.4922 17.236C14.8204 16.9213 15.1485 16.9213 15.6407 16.9213C15.9689 16.9213 16.4611 17.0787 16.6252 17.3933L18.594 19.1236L18.594 11.4157C18.594 10.6292 19.2503 10 20.0707 10C20.891 10 21.5473 10.6292 21.5473 11.4157L21.5473 19.1236L23.5162 17.236C23.6803 16.9213 24.1725 16.9213 24.5006 16.9213C24.8288 16.9213 25.321 17.0787 25.4851 17.3933C26.1414 17.8652 26.1414 18.809 25.6491 19.2809Z"/>
+						<rect class="blue" x="11" y="28" width="18" height="2" rx="1"/>
 						<defs>
 							<clipPath id="clip0">
 								<rect width="22" height="22" fill="white" transform="translate(10 10)"/>
@@ -70,30 +70,13 @@ import { toUnixTimestamp } from '@/utils/time';
                     startTime: {
                         time: '',
                     },
-                    dateRange: {
-                        startDate: '',
-                        endDate: '',
-                    },
                 };
             },
             components: {
                 Datepicker,
             },
-            beforeMount: function() {
-                const currentDate = new Date();
-                const previousDate = new Date();
-                previousDate.setDate(1);
-
-                this.$data.dateRange.startDate = previousDate;
-                this.$data.dateRange.endDate = currentDate;
-            },
             beforeRouteLeave: function(to, from, next) {
-                const currentDate = new Date();
-                const previousDate = new Date();
-                previousDate.setDate(1);
-
-                this.$data.dateRange.startDate = previousDate;
-                this.$data.dateRange.endDate = currentDate;
+            	this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH_CURRENT_ROLLUP, this.$data.dateRange);
 
                 const buttons = [...(document as any).querySelectorAll('.usage-report-container__options-area__option')];
                 buttons.forEach(option => {
@@ -105,13 +88,25 @@ import { toUnixTimestamp } from '@/utils/time';
             },
             methods: {
                 getDates: async function(datesArray: string[]) {
+                	const now = new Date();
                     const firstDate = new Date(datesArray[0]);
                     const secondDate = new Date(datesArray[1]);
-                    const isInverted = firstDate > secondDate;
-                    this.$data.dateRange.startDate = isInverted ? secondDate : firstDate;
-                    this.$data.dateRange.endDate = isInverted ? firstDate : secondDate;
 
-                    const response = await this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH, this.$data.dateRange);
+                    const isInverted = firstDate > secondDate;
+
+                    let startDate = isInverted ? secondDate : firstDate;
+                    let endDate = isInverted ? firstDate : secondDate;
+
+                    endDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate(), 23, 59, 59));
+
+                    if (now.getUTCFullYear() === endDate.getUTCFullYear()
+							&& now.getUTCMonth() === endDate.getUTCMonth()
+							&& now.getUTCDate() === endDate.getUTCDate()
+					) {
+						endDate = now;
+					}
+
+                    const response = await this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH, {startDate, endDate});
                     if (!response.isSuccess) {
                         this.$store.dispatch(NOTIFICATION_ACTIONS.ERROR, 'Unable to fetch project usage');
                     }
@@ -120,29 +115,17 @@ import { toUnixTimestamp } from '@/utils/time';
                     this.$router.push(ROUTES.PROJECT_OVERVIEW);
                 },
                 onCurrentRollupClick: async function (event: any) {
-                    const currentDate = new Date();
-                    const previousDate = new Date();
-                    previousDate.setDate(1);
-
-                    this.$data.dateRange.startDate = previousDate;
-                    this.$data.dateRange.endDate = currentDate;
                     (this as any).onButtonClickAction(event);
 
-                    const response = await this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH, this.$data.dateRange);
+                    const response = await this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH_CURRENT_ROLLUP);
                     if (!response.isSuccess) {
                         this.$store.dispatch(NOTIFICATION_ACTIONS.ERROR, 'Unable to fetch project usage');
                     }
                 },
                 onPreviousRollupClick: async function (event: any) {
-                    const date = new Date();
-                    const previousDate = new Date(date.getFullYear(), date.getMonth() - 1, 1);
-                    const currentDate = new Date(date.getFullYear(), date.getMonth(), 0);
-
-                    this.$data.dateRange.startDate = previousDate;
-                    this.$data.dateRange.endDate = currentDate;
                     (this as any).onButtonClickAction(event);
 
-                    const response = await this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH, this.$data.dateRange);
+                    const response = await this.$store.dispatch(PROJECT_USAGE_ACTIONS.FETCH_PREVIOUS_ROLLUP);
                     if (!response.isSuccess) {
                         this.$store.dispatch(NOTIFICATION_ACTIONS.ERROR, 'Unable to fetch project usage');
                     }
@@ -170,24 +153,35 @@ import { toUnixTimestamp } from '@/utils/time';
                     target.classList.add('active');
                 },
                 removeActiveClass: function(): void {
-                    const buttons = [...(document as any).querySelectorAll('.usage-report-container__header__options-area__option')];
+                    const buttons = [...(document as any).querySelectorAll('.usage-report-container__options-area__option')];
                     buttons.forEach(option => {
                         option.classList.remove('active');
                     });
                 },
                 onReportClick: function (): void {
-                    let projectID = this.$store.getters.selectedProject.id;
+                    const projectID = this.$store.getters.selectedProject.id;
+                    const startDate = this.$store.state.usageModule.startDate;
+                    const endDate = this.$store.state.usageModule.endDate;
 
                     let url = new URL(location.origin);
                     url.pathname = 'usage-report';
                     url.searchParams.append('projectID', projectID);
-                    url.searchParams.append('since', toUnixTimestamp(this.$data.dateRange.startDate).toString());
-                    url.searchParams.append('before', toUnixTimestamp(this.$data.dateRange.endDate).toString());
+                    url.searchParams.append('since', toUnixTimestamp(startDate).toString());
+                    url.searchParams.append('before', toUnixTimestamp(endDate).toString());
 
                     window.open(url.href, '_blank');
                 },
+				toLocaleDateString: function (d: Date): string {
+					return d.toLocaleDateString("en-US", {timeZone: "UTC"});
+				}
             },
             computed: {
+            	startDate: function (): Date {
+					return this.$store.state.usageModule.startDate;
+				},
+				endDate: function (): Date {
+					return this.$store.state.usageModule.endDate;
+				},
                 storage: function (): string {
                     return this.$store.state.usageModule.projectUsage.storage.toPrecision(5);
                 },
@@ -386,6 +380,24 @@ import { toUnixTimestamp } from '@/utils/time';
 
 					svg {
 						cursor: pointer;
+
+						.background {
+							fill: #E2ECF7;
+						}
+
+						.blue {
+							fill: #2683FF;
+						}
+					}
+
+					svg:hover {
+						.background {
+							fill: #2683FF;
+						}
+
+						.blue {
+							fill: #FFFFFF;
+						}
 					}
 				}
 			}

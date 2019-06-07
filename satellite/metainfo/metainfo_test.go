@@ -5,23 +5,25 @@ package metainfo_test
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 	"time"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
+	"github.com/golang/protobuf/ptypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/zeebo/errs"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
+	"storj.io/storj/internal/memory"
 	"storj.io/storj/internal/testcontext"
 	"storj.io/storj/internal/testplanet"
+	"storj.io/storj/pkg/macaroon"
 	"storj.io/storj/pkg/pb"
 	"storj.io/storj/pkg/storj"
 	"storj.io/storj/satellite/console"
+	"storj.io/storj/uplink/metainfo"
 )
 
 // mockAPIKeys is mock for api keys store of pointerdb
@@ -31,7 +33,7 @@ type mockAPIKeys struct {
 }
 
 // GetByKey return api key info for given key
-func (keys *mockAPIKeys) GetByKey(ctx context.Context, key console.APIKey) (*console.APIKeyInfo, error) {
+func (keys *mockAPIKeys) GetByKey(ctx context.Context, key macaroon.APIKey) (*console.APIKeyInfo, error) {
 	return &keys.info, keys.err
 }
 
@@ -50,31 +52,142 @@ func TestInvalidAPIKey(t *testing.T) {
 		require.NoError(t, err)
 
 		_, _, err = client.CreateSegment(ctx, "hello", "world", 1, &pb.RedundancyScheme{}, 123, time.Now())
-		assertUnauthenticated(t, err)
+		assertUnauthenticated(t, err, false)
 
 		_, err = client.CommitSegment(ctx, "testbucket", "testpath", 0, &pb.Pointer{}, nil)
-		assertUnauthenticated(t, err)
+		assertUnauthenticated(t, err, false)
 
 		_, err = client.SegmentInfo(ctx, "testbucket", "testpath", 0)
-		assertUnauthenticated(t, err)
+		assertUnauthenticated(t, err, false)
 
 		_, _, err = client.ReadSegment(ctx, "testbucket", "testpath", 0)
-		assertUnauthenticated(t, err)
+		assertUnauthenticated(t, err, false)
 
 		_, err = client.DeleteSegment(ctx, "testbucket", "testpath", 0)
-		assertUnauthenticated(t, err)
+		assertUnauthenticated(t, err, false)
 
 		_, _, err = client.ListSegments(ctx, "testbucket", "", "", "", true, 1, 0)
-		assertUnauthenticated(t, err)
+		assertUnauthenticated(t, err, false)
 	}
 }
 
-func assertUnauthenticated(t *testing.T, err error) {
+func TestRestrictedAPIKey(t *testing.T) {
+	ctx := testcontext.New(t)
+	defer ctx.Cleanup()
+
+	planet, err := testplanet.New(t, 1, 1, 1)
+	require.NoError(t, err)
+	defer ctx.Check(planet.Shutdown)
+
+	planet.Start(ctx)
+
+	key, err := macaroon.ParseAPIKey(planet.Uplinks[0].APIKey[planet.Satellites[0].ID()])
+	require.NoError(t, err)
+
+	tests := []struct {
+		Caveat               macaroon.Caveat
+		CreateSegmentAllowed bool
+		CommitSegmentAllowed bool
+		SegmentInfoAllowed   bool
+		ReadSegmentAllowed   bool
+		DeleteSegmentAllowed bool
+		ListSegmentsAllowed  bool
+	}{
+		{ // Everything disallowed
+			Caveat: macaroon.Caveat{
+				DisallowReads:   true,
+				DisallowWrites:  true,
+				DisallowLists:   true,
+				DisallowDeletes: true,
+			},
+		},
+
+		{ // Read only
+			Caveat: macaroon.Caveat{
+				DisallowWrites:  true,
+				DisallowDeletes: true,
+			},
+			SegmentInfoAllowed:  true,
+			ReadSegmentAllowed:  true,
+			ListSegmentsAllowed: true,
+		},
+
+		{ // Write only
+			Caveat: macaroon.Caveat{
+				DisallowReads: true,
+				DisallowLists: true,
+			},
+			CreateSegmentAllowed: true,
+			CommitSegmentAllowed: true,
+			DeleteSegmentAllowed: true,
+		},
+
+		{ // Bucket restriction
+			Caveat: macaroon.Caveat{
+				AllowedPaths: []*macaroon.Caveat_Path{{
+					Bucket: []byte("otherbucket"),
+				}},
+			},
+		},
+
+		{ // Path restriction
+			Caveat: macaroon.Caveat{
+				AllowedPaths: []*macaroon.Caveat_Path{{
+					Bucket:              []byte("testbucket"),
+					EncryptedPathPrefix: []byte("otherpath"),
+				}},
+			},
+		},
+
+		{ // Time restriction after
+			Caveat: macaroon.Caveat{
+				NotAfter: func(x time.Time) *time.Time { return &x }(time.Now()),
+			},
+		},
+
+		{ // Time restriction before
+			Caveat: macaroon.Caveat{
+				NotBefore: func(x time.Time) *time.Time { return &x }(time.Now().Add(time.Hour)),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		restrictedKey, err := key.Restrict(test.Caveat)
+		require.NoError(t, err)
+
+		client, err := planet.Uplinks[0].DialMetainfo(ctx, planet.Satellites[0], restrictedKey.Serialize())
+		require.NoError(t, err)
+
+		_, _, err = client.CreateSegment(ctx, "testbucket", "testpath", 1, &pb.RedundancyScheme{}, 123, time.Now())
+		assertUnauthenticated(t, err, test.CreateSegmentAllowed)
+
+		_, err = client.CommitSegment(ctx, "testbucket", "testpath", 0, &pb.Pointer{}, nil)
+		assertUnauthenticated(t, err, test.CommitSegmentAllowed)
+
+		_, err = client.SegmentInfo(ctx, "testbucket", "testpath", 0)
+		assertUnauthenticated(t, err, test.SegmentInfoAllowed)
+
+		_, _, err = client.ReadSegment(ctx, "testbucket", "testpath", 0)
+		assertUnauthenticated(t, err, test.ReadSegmentAllowed)
+
+		_, err = client.DeleteSegment(ctx, "testbucket", "testpath", 0)
+		assertUnauthenticated(t, err, test.DeleteSegmentAllowed)
+
+		_, _, err = client.ListSegments(ctx, "testbucket", "testpath", "", "", true, 1, 0)
+		assertUnauthenticated(t, err, test.ListSegmentsAllowed)
+
+	}
+}
+
+func assertUnauthenticated(t *testing.T, err error, allowed bool) {
 	t.Helper()
 
+	// If it's allowed, we allow any non-unauthenticated error because
+	// some calls error after authentication checks.
 	if err, ok := status.FromError(errs.Unwrap(err)); ok {
-		assert.Equal(t, codes.Unauthenticated, err.Code())
-	} else {
+		assert.Equal(t, codes.Unauthenticated == err.Code(), !allowed)
+	} else if !allowed {
 		assert.Fail(t, "got unexpected error", "%T", err)
 	}
 }
@@ -153,7 +266,7 @@ func TestServiceList(t *testing.T) {
 		return list.Items[i].Path < list.Items[k].Path
 	})
 	for i, item := range expected {
-		fmt.Println(item.Path, list.Items[i].Path)
+		t.Log(item.Path, list.Items[i].Path)
 		require.Equal(t, item.Path, list.Items[i].Path)
 		require.Equal(t, item.IsPrefix, list.Items[i].IsPrefix)
 	}
@@ -163,9 +276,7 @@ func TestCommitSegment(t *testing.T) {
 	testplanet.Run(t, testplanet.Config{
 		SatelliteCount: 1, StorageNodeCount: 6, UplinkCount: 1,
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
-		projects, err := planet.Satellites[0].DB.Console().Projects().GetAll(ctx)
-		require.NoError(t, err)
-		apiKey := console.APIKeyFromBytes([]byte(projects[0].Name)).String()
+		apiKey := planet.Uplinks[0].APIKey[planet.Satellites[0].ID()]
 
 		metainfo, err := planet.Uplinks[0].DialMetainfo(ctx, planet.Satellites[0], apiKey)
 		require.NoError(t, err)
@@ -189,7 +300,8 @@ func TestCommitSegment(t *testing.T) {
 				Total:            6,
 				ErasureShareSize: 10,
 			}
-			addresedLimits, rootPieceID, err := metainfo.CreateSegment(ctx, "bucket", "path", -1, redundancy, 1000, time.Now())
+			expirationDate := time.Now()
+			addresedLimits, rootPieceID, err := metainfo.CreateSegment(ctx, "bucket", "path", -1, redundancy, 1000, expirationDate)
 			require.NoError(t, err)
 
 			// create number of pieces below repair threshold
@@ -201,6 +313,10 @@ func TestCommitSegment(t *testing.T) {
 					NodeId:   limit.Limit.StorageNodeId,
 				}
 			}
+
+			expirationDateProto, err := ptypes.TimestampProto(expirationDate)
+			require.NoError(t, err)
+
 			pointer := &pb.Pointer{
 				Type: pb.Pointer_REMOTE,
 				Remote: &pb.RemoteSegment{
@@ -208,6 +324,7 @@ func TestCommitSegment(t *testing.T) {
 					Redundancy:   redundancy,
 					RemotePieces: pieces,
 				},
+				ExpirationDate: expirationDateProto,
 			}
 
 			limits := make([]*pb.OrderLimit2, len(addresedLimits))
@@ -216,7 +333,152 @@ func TestCommitSegment(t *testing.T) {
 			}
 			_, err = metainfo.CommitSegment(ctx, "bucket", "path", -1, pointer, limits)
 			require.Error(t, err)
-			require.Contains(t, err.Error(), "Number of valid pieces is lower then repair threshold")
+			require.Contains(t, err.Error(), "Number of valid pieces is less than or equal to the repair threshold")
 		}
 	})
+}
+
+func TestDoubleCommitSegment(t *testing.T) {
+	testplanet.Run(t, testplanet.Config{
+		SatelliteCount: 1, StorageNodeCount: 6, UplinkCount: 1,
+	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
+		apiKey := planet.Uplinks[0].APIKey[planet.Satellites[0].ID()]
+
+		metainfo, err := planet.Uplinks[0].DialMetainfo(ctx, planet.Satellites[0], apiKey)
+		require.NoError(t, err)
+
+		pointer, limits := runCreateSegment(ctx, t, metainfo)
+
+		_, err = metainfo.CommitSegment(ctx, "myBucketName", "file/path", -1, pointer, limits)
+		require.NoError(t, err)
+
+		_, err = metainfo.CommitSegment(ctx, "myBucketName", "file/path", -1, pointer, limits)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "missing create request or request expired")
+	})
+}
+
+func TestCommitSegmentPointer(t *testing.T) {
+	// all tests needs to generate error
+	tests := []struct {
+		// defines how modify pointer before CommitSegment
+		Modify       func(pointer *pb.Pointer)
+		ErrorMessage string
+	}{
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.ExpirationDate.Seconds += 100
+			},
+			ErrorMessage: "pointer expiration date does not match requested one",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Remote.Redundancy.MinReq += 100
+			},
+			ErrorMessage: "pointer redundancy scheme date does not match requested one",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Remote.Redundancy.RepairThreshold += 100
+			},
+			ErrorMessage: "pointer redundancy scheme date does not match requested one",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Remote.Redundancy.SuccessThreshold += 100
+			},
+			ErrorMessage: "pointer redundancy scheme date does not match requested one",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Remote.Redundancy.Total += 100
+			},
+			// this error is triggered earlier then Create/Commit RS comparison
+			ErrorMessage: "invalid no order limit for piece",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Remote.Redundancy.ErasureShareSize += 100
+			},
+			ErrorMessage: "pointer redundancy scheme date does not match requested one",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Remote.Redundancy.Type = 100
+			},
+			ErrorMessage: "pointer redundancy scheme date does not match requested one",
+		},
+		{
+			Modify: func(pointer *pb.Pointer) {
+				pointer.Type = pb.Pointer_INLINE
+			},
+			ErrorMessage: "pointer type is INLINE but remote segment is set",
+		},
+	}
+
+	testplanet.Run(t, testplanet.Config{
+		SatelliteCount: 1, StorageNodeCount: 6, UplinkCount: 1,
+	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
+		apiKey := planet.Uplinks[0].APIKey[planet.Satellites[0].ID()]
+
+		metainfo, err := planet.Uplinks[0].DialMetainfo(ctx, planet.Satellites[0], apiKey)
+		require.NoError(t, err)
+
+		for _, test := range tests {
+			pointer, limits := runCreateSegment(ctx, t, metainfo)
+			test.Modify(pointer)
+
+			_, err = metainfo.CommitSegment(ctx, "myBucketName", "file/path", -1, pointer, limits)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), test.ErrorMessage)
+		}
+	})
+}
+
+func runCreateSegment(ctx context.Context, t *testing.T, metainfo metainfo.Client) (*pb.Pointer, []*pb.OrderLimit2) {
+	pointer := createTestPointer(t)
+	expirationDate, err := ptypes.Timestamp(pointer.ExpirationDate)
+	require.NoError(t, err)
+
+	addressedLimits, rootPieceID, err := metainfo.CreateSegment(ctx, "myBucketName", "file/path", -1, pointer.Remote.Redundancy, memory.MiB.Int64(), expirationDate)
+	require.NoError(t, err)
+
+	pointer.Remote.RootPieceId = rootPieceID
+	pointer.Remote.RemotePieces[0].NodeId = addressedLimits[0].Limit.StorageNodeId
+	pointer.Remote.RemotePieces[1].NodeId = addressedLimits[1].Limit.StorageNodeId
+
+	limits := make([]*pb.OrderLimit2, len(addressedLimits))
+	for i, addressedLimit := range addressedLimits {
+		limits[i] = addressedLimit.Limit
+	}
+
+	return pointer, limits
+}
+
+func createTestPointer(t *testing.T) *pb.Pointer {
+	rs := &pb.RedundancyScheme{
+		MinReq:           1,
+		RepairThreshold:  1,
+		SuccessThreshold: 3,
+		Total:            4,
+		ErasureShareSize: 1024,
+		Type:             pb.RedundancyScheme_RS,
+	}
+
+	pointer := &pb.Pointer{
+		Type: pb.Pointer_REMOTE,
+		Remote: &pb.RemoteSegment{
+			Redundancy: rs,
+			RemotePieces: []*pb.RemotePiece{
+				&pb.RemotePiece{
+					PieceNum: 0,
+				},
+				&pb.RemotePiece{
+					PieceNum: 1,
+				},
+			},
+		},
+		ExpirationDate: ptypes.TimestampNow(),
+	}
+	return pointer
 }

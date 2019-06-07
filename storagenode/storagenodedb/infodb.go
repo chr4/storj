@@ -12,6 +12,7 @@ import (
 	"github.com/zeebo/errs"
 	"go.uber.org/zap"
 
+	"storj.io/storj/internal/dbutil"
 	"storj.io/storj/internal/migrate"
 )
 
@@ -35,6 +36,8 @@ func newInfo(path string) (*InfoDB, error) {
 		return nil, ErrInfo.Wrap(err)
 	}
 
+	dbutil.Configure(db, mon)
+
 	return &InfoDB{db: db}, nil
 }
 
@@ -44,6 +47,8 @@ func NewInfoInMemory() (*InfoDB, error) {
 	if err != nil {
 		return nil, ErrInfo.Wrap(err)
 	}
+
+	dbutil.Configure(db, mon)
 
 	return &InfoDB{db: db}, nil
 }
@@ -148,15 +153,15 @@ func (db *InfoDB) Migration() *migrate.Migration {
 					`CREATE TABLE order_archive (
 						satellite_id  BLOB NOT NULL,
 						serial_number BLOB NOT NULL,
-						
+
 						order_limit_serialized BLOB NOT NULL, -- serialized pb.OrderLimit
 						order_serialized       BLOB NOT NULL, -- serialized pb.Order
-						
+
 						uplink_cert_id INTEGER NOT NULL,
-						
+
 						status      INTEGER   NOT NULL, -- accepted, rejected, confirmed
 						archived_at TIMESTAMP NOT NULL, -- when was it rejected
-						
+
 						FOREIGN KEY(uplink_cert_id) REFERENCES certificate(cert_id)
 					)`,
 					`CREATE INDEX idx_order_archive_satellite ON order_archive(satellite_id)`,

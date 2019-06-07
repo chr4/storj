@@ -18,6 +18,7 @@ import (
 	"storj.io/storj/internal/testcontext"
 	"storj.io/storj/internal/testplanet"
 	"storj.io/storj/pkg/eestream"
+	"storj.io/storj/pkg/macaroon"
 	"storj.io/storj/pkg/metainfo/kvmetainfo"
 	"storj.io/storj/pkg/storage/buckets"
 	ecclient "storj.io/storj/pkg/storage/ec"
@@ -30,8 +31,6 @@ const (
 	TestEncKey = "test-encryption-key"
 	TestBucket = "test-bucket"
 )
-
-var TestAPIKey = "test-api-key"
 
 func TestBucketsBasic(t *testing.T) {
 	runTest(t, func(ctx context.Context, planet *testplanet.Planet, db *kvmetainfo.DB, buckets buckets.Store, streams streams.Store) {
@@ -326,24 +325,28 @@ func newMetainfoParts(planet *testplanet.Planet) (*kvmetainfo.DB, buckets.Store,
 	project, err := planet.Satellites[0].DB.Console().Projects().Insert(context.Background(), &console.Project{
 		Name: "testProject",
 	})
-
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	apiKey := console.APIKey{}
+	apiKey, err := macaroon.NewAPIKey([]byte("testSecret"))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	apiKeyInfo := console.APIKeyInfo{
 		ProjectID: project.ID,
 		Name:      "testKey",
+		Secret:    []byte("testSecret"),
 	}
 
 	// add api key to db
-	_, err = planet.Satellites[0].DB.Console().APIKeys().Create(context.Background(), apiKey, apiKeyInfo)
+	_, err = planet.Satellites[0].DB.Console().APIKeys().Create(context.Background(), apiKey.Head(), apiKeyInfo)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	metainfo, err := planet.Uplinks[0].DialMetainfo(context.Background(), planet.Satellites[0], apiKey.String())
+	metainfo, err := planet.Uplinks[0].DialMetainfo(context.Background(), planet.Satellites[0], apiKey.Serialize())
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -364,14 +367,15 @@ func newMetainfoParts(planet *testplanet.Planet) (*kvmetainfo.DB, buckets.Store,
 	key := new(storj.Key)
 	copy(key[:], TestEncKey)
 
-	streams, err := streams.NewStreamStore(segments, 64*memory.MiB.Int64(), key, 1*memory.KiB.Int(), storj.AESGCM)
+	blockSize := rs.StripeSize()
+	streams, err := streams.NewStreamStore(segments, 64*memory.MiB.Int64(), key, blockSize, storj.AESGCM)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	buckets := buckets.NewStore(streams)
 
-	return kvmetainfo.New(metainfo, buckets, streams, segments, key, 1*memory.KiB.Int32(), rs, 64*memory.MiB.Int64()), buckets, streams, nil
+	return kvmetainfo.New(metainfo, buckets, streams, segments, key, int32(blockSize), rs, 64*memory.MiB.Int64()), buckets, streams, nil
 }
 
 func forAllCiphers(test func(cipher storj.Cipher)) {

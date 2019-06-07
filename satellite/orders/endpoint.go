@@ -76,6 +76,24 @@ func NewEndpoint(log *zap.Logger, satelliteSignee signing.Signee, db DB, certdb 
 	}
 }
 
+func monitoredSettlementStreamReceive(ctx context.Context, stream pb.Orders_SettlementServer) (_ *pb.SettlementRequest, err error) {
+	defer mon.Task()(&ctx)(&err)
+	return stream.Recv()
+}
+
+func monitoredSettlementStreamSend(ctx context.Context, stream pb.Orders_SettlementServer, resp *pb.SettlementResponse) (err error) {
+	defer mon.Task()(&ctx)(&err)
+	switch resp.Status {
+	case pb.SettlementResponse_ACCEPTED:
+		mon.Event("settlement_response_accepted")
+	case pb.SettlementResponse_REJECTED:
+		mon.Event("settlement_response_rejected")
+	default:
+		mon.Event("settlement_response_unknown")
+	}
+	return stream.Send(resp)
+}
+
 // Settlement receives and handles orders.
 func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err error) {
 	ctx := stream.Context()
@@ -93,9 +111,10 @@ func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err err
 		return status.Error(codes.Unknown, err.Error())
 	}
 
-	endpoint.log.Debug("Settlement", zap.Any("storage node ID", peer.ID))
+	log := endpoint.log.Named(peer.ID.String())
+	log.Debug("Settlement")
 	for {
-		request, err := stream.Recv()
+		request, err := monitoredSettlementStreamReceive(ctx, stream)
 		if err != nil {
 			return formatError(err)
 		}
@@ -130,7 +149,7 @@ func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err err
 		} else {
 			uplinkPubKey, err := endpoint.certdb.GetPublicKey(ctx, orderLimit.UplinkId)
 			if err != nil {
-				endpoint.log.Warn("unable to find uplink public key", zap.Error(err))
+				log.Warn("unable to find uplink public key", zap.Error(err))
 				return status.Errorf(codes.Internal, "unable to find uplink public key")
 			}
 			uplinkSignee = &signing.PublicKey{
@@ -140,11 +159,11 @@ func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err err
 		}
 
 		rejectErr := func() error {
-			if err := signing.VerifyOrderLimitSignature(endpoint.satelliteSignee, orderLimit); err != nil {
+			if err := signing.VerifyOrderLimitSignature(ctx, endpoint.satelliteSignee, orderLimit); err != nil {
 				return Error.New("unable to verify order limit")
 			}
 
-			if err := signing.VerifyOrderSignature(uplinkSignee, order); err != nil {
+			if err := signing.VerifyOrderSignature(ctx, uplinkSignee, order); err != nil {
 				return Error.New("unable to verify order")
 			}
 
@@ -159,8 +178,8 @@ func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err err
 			return nil
 		}()
 		if rejectErr != err {
-			endpoint.log.Debug("order limit/order verification failed", zap.String("serial", orderLimit.SerialNumber.String()), zap.Error(err))
-			err := stream.Send(&pb.SettlementResponse{
+			log.Debug("order limit/order verification failed", zap.String("serial", orderLimit.SerialNumber.String()), zap.Error(err))
+			err := monitoredSettlementStreamSend(ctx, stream, &pb.SettlementResponse{
 				SerialNumber: orderLimit.SerialNumber,
 				Status:       pb.SettlementResponse_REJECTED,
 			})
@@ -171,9 +190,9 @@ func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err err
 
 		bucketID, err := endpoint.DB.UseSerialNumber(ctx, orderLimit.SerialNumber, orderLimit.StorageNodeId)
 		if err != nil {
-			endpoint.log.Warn("unable to use serial number", zap.Error(err))
+			log.Warn("unable to use serial number", zap.Error(err))
 			if ErrUsingSerialNumber.Has(err) {
-				err := stream.Send(&pb.SettlementResponse{
+				err := monitoredSettlementStreamSend(ctx, stream, &pb.SettlementResponse{
 					SerialNumber: orderLimit.SerialNumber,
 					Status:       pb.SettlementResponse_REJECTED,
 				})
@@ -190,22 +209,22 @@ func (endpoint *Endpoint) Settlement(stream pb.Orders_SettlementServer) (err err
 
 		if err := endpoint.DB.UpdateBucketBandwidthSettle(ctx, bucketID, orderLimit.Action, order.Amount, intervalStart); err != nil {
 			if err := endpoint.DB.UnuseSerialNumber(ctx, orderLimit.SerialNumber, orderLimit.StorageNodeId); err != nil {
-				endpoint.log.Error("unable to unuse serial number", zap.Error(err))
+				log.Error("unable to unuse serial number", zap.Error(err))
 			}
 			return err
 		}
 
 		if err := endpoint.DB.UpdateStoragenodeBandwidthSettle(ctx, orderLimit.StorageNodeId, orderLimit.Action, order.Amount, intervalStart); err != nil {
 			if err := endpoint.DB.UnuseSerialNumber(ctx, orderLimit.SerialNumber, orderLimit.StorageNodeId); err != nil {
-				endpoint.log.Error("unable to unuse serial number", zap.Error(err))
+				log.Error("unable to unuse serial number", zap.Error(err))
 			}
 			if err := endpoint.DB.UpdateBucketBandwidthSettle(ctx, bucketID, orderLimit.Action, -order.Amount, intervalStart); err != nil {
-				endpoint.log.Error("unable to rollback bucket bandwidth", zap.Error(err))
+				log.Error("unable to rollback bucket bandwidth", zap.Error(err))
 			}
 			return err
 		}
 
-		err = stream.Send(&pb.SettlementResponse{
+		err = monitoredSettlementStreamSend(ctx, stream, &pb.SettlementResponse{
 			SerialNumber: orderLimit.SerialNumber,
 			Status:       pb.SettlementResponse_ACCEPTED,
 		})

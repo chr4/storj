@@ -23,6 +23,7 @@ import (
 	"storj.io/storj/internal/testplanet"
 	libuplink "storj.io/storj/lib/uplink"
 	"storj.io/storj/pkg/eestream"
+	"storj.io/storj/pkg/macaroon"
 	"storj.io/storj/pkg/metainfo/kvmetainfo"
 	"storj.io/storj/pkg/pb"
 	"storj.io/storj/pkg/storage/buckets"
@@ -662,24 +663,28 @@ func initEnv(ctx context.Context, planet *testplanet.Planet) (minio.ObjectLayer,
 	project, err := planet.Satellites[0].DB.Console().Projects().Insert(ctx, &console.Project{
 		Name: "testProject",
 	})
-
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	apiKey := console.APIKey{}
+	apiKey, err := macaroon.NewAPIKey([]byte("testSecret"))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	apiKeyInfo := console.APIKeyInfo{
 		ProjectID: project.ID,
 		Name:      "testKey",
+		Secret:    []byte("testSecret"),
 	}
 
 	// add api key to db
-	_, err = planet.Satellites[0].DB.Console().APIKeys().Create(ctx, apiKey, apiKeyInfo)
+	_, err = planet.Satellites[0].DB.Console().APIKeys().Create(ctx, apiKey.Head(), apiKeyInfo)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	metainfo, err := planet.Uplinks[0].DialMetainfo(ctx, planet.Satellites[0], apiKey.String())
+	metainfo, err := planet.Uplinks[0].DialMetainfo(ctx, planet.Satellites[0], apiKey.Serialize())
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -700,14 +705,15 @@ func initEnv(ctx context.Context, planet *testplanet.Planet) (minio.ObjectLayer,
 	encKey := new(storj.Key)
 	copy(encKey[:], TestEncKey)
 
-	streams, err := streams.NewStreamStore(segments, 64*memory.MiB.Int64(), encKey, 1*memory.KiB.Int(), storj.AESGCM)
+	blockSize := rs.StripeSize()
+	streams, err := streams.NewStreamStore(segments, 64*memory.MiB.Int64(), encKey, blockSize, storj.AESGCM)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	buckets := buckets.NewStore(streams)
 
-	kvmetainfo := kvmetainfo.New(metainfo, buckets, streams, segments, encKey, 1*memory.KiB.Int32(), rs, 64*memory.MiB.Int64())
+	kvmetainfo := kvmetainfo.New(metainfo, buckets, streams, segments, encKey, int32(blockSize), rs, 64*memory.MiB.Int64())
 
 	cfg := libuplink.Config{}
 	cfg.Volatile.TLS = struct {
@@ -722,7 +728,7 @@ func initEnv(ctx context.Context, planet *testplanet.Planet) (minio.ObjectLayer,
 		return nil, nil, nil, err
 	}
 
-	parsedAPIKey, err := libuplink.ParseAPIKey(apiKey.String())
+	parsedAPIKey, err := libuplink.ParseAPIKey(apiKey.Serialize())
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -734,13 +740,15 @@ func initEnv(ctx context.Context, planet *testplanet.Planet) (minio.ObjectLayer,
 		return nil, nil, nil, err
 	}
 
+	stripeSize := rs.StripeSize()
+
 	gateway := NewStorjGateway(
 		proj,
 		encKey,
 		storj.EncAESGCM,
 		storj.EncryptionParameters{
 			CipherSuite: storj.EncAESGCM,
-			BlockSize:   1 * memory.KiB.Int32(),
+			BlockSize:   int32(stripeSize),
 		},
 		storj.RedundancyScheme{
 			Algorithm:      storj.ReedSolomon,
