@@ -12,7 +12,8 @@ import (
 	"storj.io/storj/pkg/storj"
 )
 
-// TODO: figure out a better name
+// ReliableCache caches the reliable nodes for the specified staleness duration
+// and updates automatically from overlay.
 type ReliableCache struct {
 	overlay    *overlay.Cache
 	staleness  time.Duration
@@ -20,6 +21,7 @@ type ReliableCache struct {
 	reliable   map[storj.NodeID]struct{}
 }
 
+// NewReliableCache creates a new reliability checking cache.
 func NewReliableCache(overlay *overlay.Cache, staleness time.Duration) *ReliableCache {
 	return &ReliableCache{
 		overlay:   overlay,
@@ -28,8 +30,10 @@ func NewReliableCache(overlay *overlay.Cache, staleness time.Duration) *Reliable
 	}
 }
 
+// LastUpdate returns when the cache was last updated.
 func (cache *ReliableCache) LastUpdate() time.Time { return cache.lastUpdate }
 
+// MissingPieces returns piece indices that are unreliable with the given staleness period.
 func (cache *ReliableCache) MissingPieces(ctx context.Context, created time.Time, pieces []*pb.RemotePiece) ([]int32, error) {
 	if created.After(cache.lastUpdate) || time.Since(cache.lastUpdate) > cache.staleness {
 		err := cache.refresh(ctx)
@@ -47,6 +51,7 @@ func (cache *ReliableCache) MissingPieces(ctx context.Context, created time.Time
 	return unreliable, nil
 }
 
+// refresh refreshes the cache.
 func (cache *ReliableCache) refresh(ctx context.Context) error {
 	for id := range cache.reliable {
 		delete(cache.reliable, id)
