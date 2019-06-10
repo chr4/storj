@@ -5,6 +5,7 @@ package segments
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"math/rand"
 	"strconv"
@@ -132,6 +133,8 @@ func (s *segmentStore) Put(ctx context.Context, data io.Reader, expiration time.
 			ExpirationDate: exp,
 			Metadata:       metadata,
 		}
+		fmt.Printf("in segments: pointer: %#v\n", pointer)
+		fmt.Println("in segments: len(peekReader.thresholdBuf):", len(peekReader.thresholdBuf))
 	} else {
 		// early call to get bucket name, rest of the path cannot be determine yet
 		p, _, err := segmentInfo()

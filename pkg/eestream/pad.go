@@ -30,6 +30,16 @@ func makePadding(dataLen int64, blockSize int) []byte {
 	return paddingBytes
 }
 
+func CalculatePaddingSize(dataLen int64, blockSize int) int {
+	amount := dataLen + uint32Size
+	r := amount % int64(blockSize)
+	padding := uint32Size
+	if r > 0 {
+		padding += blockSize - int(r)
+	}
+	return padding
+}
+
 // Pad takes a Ranger and returns another Ranger that is a multiple of
 // blockSize in length. The return value padding is a convenience to report how
 // much padding was added.

@@ -6,6 +6,7 @@ package encryption
 import (
 	"crypto/hmac"
 	"crypto/sha512"
+	"fmt"
 
 	"storj.io/storj/pkg/storj"
 )
@@ -134,15 +135,20 @@ func DeriveKey(key *storj.Key, message string) (*storj.Key, error) {
 // encrypting data with dataSize using a Transformer with the given encryption
 // scheme.
 func CalcEncryptedSize(dataSize int64, scheme storj.EncryptionScheme) (int64, error) {
+	fmt.Println("in CalcEncryptedSize, blocksize:", int(scheme.BlockSize))
 	transformer, err := NewEncrypter(scheme.Cipher, new(storj.Key), new(storj.Nonce), int(scheme.BlockSize))
 	if err != nil {
 		return 0, err
 	}
 
 	inBlockSize := int64(transformer.InBlockSize())
+	fmt.Println("in CalcEncryptedSize, inBlockSize:", inBlockSize)
 	blocks := (dataSize + uint32Size + inBlockSize - 1) / inBlockSize
 
 	encryptedSize := blocks * int64(transformer.OutBlockSize())
+	fmt.Println("in CalcEncryptedSize, OutBlockSize:",
+		int64(transformer.OutBlockSize()),
+	)
 
 	return encryptedSize, nil
 }

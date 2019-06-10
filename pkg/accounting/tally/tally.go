@@ -156,7 +156,7 @@ func (t *Service) CalculateAtRestData(ctx context.Context) (latestTally time.Tim
 						}
 						currentBucket = bucketID
 					}
-
+					
 					currentBucketTally.AddSegment(pointer, segment == "l")
 				}
 

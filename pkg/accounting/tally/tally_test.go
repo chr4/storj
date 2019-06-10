@@ -5,6 +5,7 @@ package tally_test
 
 import (
 	"crypto/rand"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"storj.io/storj/internal/testplanet"
 	"storj.io/storj/internal/teststorj"
 	"storj.io/storj/pkg/accounting"
+	"storj.io/storj/pkg/eestream"
 	"storj.io/storj/pkg/encryption"
 	"storj.io/storj/pkg/storj"
 )
@@ -61,7 +63,9 @@ func TestOnlyInline(t *testing.T) {
 	testplanet.Run(t, testplanet.Config{
 		SatelliteCount: 1, StorageNodeCount: 6, UplinkCount: 1,
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
+
 		tallySvc := planet.Satellites[0].Accounting.Tally
+
 		uplink := planet.Uplinks[0]
 
 		// Setup: create data for the uplink to upload
@@ -71,7 +75,17 @@ func TestOnlyInline(t *testing.T) {
 
 		// Setup: get the expected size of the data that will be stored in pointer
 		uplinkConfig := uplink.GetConfig(planet.Satellites[0])
-		expectedTotalBytes, err := encryption.CalcEncryptedSize(int64(len(expectedData)), uplinkConfig.GetEncryptionScheme())
+		expectedTotalBytes, err := encryption.CalcEncryptedSize(
+			int64(len(expectedData)),
+			uplinkConfig.GetEncryptionScheme(),
+		)
+
+		fmt.Printf("enc scheme: %#v\n", uplinkConfig.GetEncryptionScheme())
+		x := eestream.CalculatePaddingSize(int64(len(expectedData)), int(uplinkConfig.GetEncryptionScheme().BlockSize))
+		fmt.Println("**** pad", x)
+		fmt.Println("**** data len", len(expectedData))
+		fmt.Println("**** blocksize", int(uplinkConfig.GetEncryptionScheme().BlockSize))
+		fmt.Println("**** expectedTotalBytes", expectedTotalBytes)
 		require.NoError(t, err)
 
 		// Setup: The data in this tally should match the pointer that the uplink.upload created
@@ -104,6 +118,8 @@ func TestOnlyInline(t *testing.T) {
 			for bucketID, actualTally := range actualBucketData {
 				assert.Contains(t, bucketID, expectedBucketName)
 				assert.Equal(t, expectedTally, *actualTally)
+				fmt.Printf("expected tally: %#v\n", expectedTally)
+				fmt.Printf("actual tally: %#v\n", *actualTally)
 			}
 		}
 	})

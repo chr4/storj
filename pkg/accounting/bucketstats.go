@@ -4,6 +4,8 @@
 package accounting
 
 import (
+	"fmt"
+
 	monkit "gopkg.in/spacemonkeygo/monkit.v2"
 
 	"storj.io/storj/pkg/pb"
@@ -51,6 +53,7 @@ func (s *BucketTally) Combine(o *BucketTally) {
 // AddSegment groups all the data based the passed pointer
 func (s *BucketTally) AddSegment(pointer *pb.Pointer, last bool) {
 	s.Segments++
+	fmt.Printf("in tally/bucketstats: pointer: %#v\n", pointer)
 	switch pointer.GetType() {
 	case pb.Pointer_INLINE:
 		s.InlineSegments++
@@ -76,6 +79,8 @@ func (s *BucketTally) AddSegment(pointer *pb.Pointer, last bool) {
 			s.RemoteFiles++
 		}
 	}
+	fmt.Printf("in tally/bucketstats: bucket tally: %#v\n", s)
+
 }
 
 // Report reports the stats thru monkit
