@@ -107,11 +107,7 @@ type NodeDossier struct {
 // NodeStats contains statistics about a node.
 type NodeStats struct {
 	Latency90             int64
-	AuditSuccessRatio     float64
-	AuditSuccessCount     int64
 	AuditCount            int64
-	UptimeRatio           float64
-	UptimeSuccessCount    int64
 	UptimeCount           int64
 	LastContactSuccess    time.Time
 	LastContactFailure    time.Time

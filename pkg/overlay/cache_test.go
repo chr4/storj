@@ -37,9 +37,7 @@ func TestCache_Database(t *testing.T) {
 // returns a NodeSelectionConfig with sensible test values
 func testNodeSelectionConfig(auditCount int64, newNodePercentage float64, distinctIP bool) overlay.NodeSelectionConfig {
 	return overlay.NodeSelectionConfig{
-		UptimeRatio:       0,
 		UptimeCount:       0,
-		AuditSuccessRatio: 0,
 		AuditCount:        auditCount,
 		NewNodePercentage: newNodePercentage,
 		OnlineWindow:      time.Hour,
@@ -209,9 +207,7 @@ func TestIsVetted(t *testing.T) {
 		Reconfigure: testplanet.Reconfigure{
 			Satellite: func(log *zap.Logger, index int, config *satellite.Config) {
 				config.Overlay.Node.AuditCount = 1
-				config.Overlay.Node.AuditSuccessRatio = 1
 				config.Overlay.Node.UptimeCount = 1
-				config.Overlay.Node.UptimeRatio = 1
 			},
 		},
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
