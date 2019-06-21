@@ -182,6 +182,25 @@ func (db *InfoDB) Migration() *migrate.Migration {
 					`ALTER TABLE pieceinfo ADD COLUMN deletion_failed_at TIMESTAMP`,
 				},
 			},
+			{
+				Description: "Add vouchersDB for storing and retrieving vouchers.",
+				Version:     3,
+				Action: migrate.SQL{
+					`CREATE TABLE vouchers (
+						satellite_id BLOB PRIMARY KEY NOT NULL,
+						voucher_serialized BLOB NOT NULL,
+						expiration TIMESTAMP NOT NULL
+					)`,
+				},
+			},
+			{
+				Description: "Add index on pieceinfo expireation",
+				Version:     4,
+				Action: migrate.SQL{
+					`CREATE INDEX idx_pieceinfo_expiration ON pieceinfo(piece_expiration)`,
+					`CREATE INDEX idx_pieceinfo_deletion_failed ON pieceinfo(deletion_failed_at)`,
+				},
+			},
 		},
 	}
 }

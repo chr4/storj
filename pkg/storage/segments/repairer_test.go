@@ -22,8 +22,6 @@ import (
 )
 
 func TestSegmentStoreRepair(t *testing.T) {
-	t.Skip("flaky")
-
 	testplanet.Run(t, testplanet.Config{
 		SatelliteCount: 1, StorageNodeCount: 6, UplinkCount: 1,
 	}, func(t *testing.T, ctx *testcontext.Context, planet *testplanet.Planet) {
@@ -34,6 +32,7 @@ func TestSegmentStoreRepair(t *testing.T) {
 		satellite.Repair.Checker.Loop.Stop()
 		// stop discovery service so that we do not get a race condition when we delete nodes from overlay cache
 		satellite.Discovery.Service.Discovery.Stop()
+		satellite.Discovery.Service.Refresh.Stop()
 
 		testData := make([]byte, 1*memory.MiB)
 		_, err := rand.Read(testData)
@@ -69,7 +68,7 @@ func TestSegmentStoreRepair(t *testing.T) {
 		remotePieces := pointer.GetRemote().GetRemotePieces()
 		minReq := redundancy.GetMinReq()
 		numPieces := len(remotePieces)
-		toKill := numPieces - int(minReq)
+		toKill := numPieces - (int(minReq) + 1)
 		// we should have enough storage nodes to repair on
 		assert.True(t, (numStorageNodes-toKill) >= numPieces)
 
