@@ -5,7 +5,6 @@ package overlay_test
 
 import (
 	"context"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 
 	"storj.io/storj/internal/testcontext"
 	"storj.io/storj/internal/testplanet"
+	"storj.io/storj/internal/testrand"
 	"storj.io/storj/pkg/overlay"
 	"storj.io/storj/pkg/pb"
 	"storj.io/storj/pkg/storj"
@@ -37,9 +37,7 @@ func TestCache_Database(t *testing.T) {
 // returns a NodeSelectionConfig with sensible test values
 func testNodeSelectionConfig(auditCount int64, newNodePercentage float64, distinctIP bool) overlay.NodeSelectionConfig {
 	return overlay.NodeSelectionConfig{
-		UptimeRatio:       0,
 		UptimeCount:       0,
-		AuditSuccessRatio: 0,
 		AuditCount:        auditCount,
 		NewNodePercentage: newNodePercentage,
 		OnlineWindow:      time.Hour,
@@ -63,14 +61,10 @@ func testNodeSelectionConfig(auditCount int64, newNodePercentage float64, distin
 }
 
 func testCache(ctx context.Context, t *testing.T, store overlay.DB) {
-	valid1ID := storj.NodeID{}
-	valid2ID := storj.NodeID{}
-	missingID := storj.NodeID{}
+	valid1ID := testrand.NodeID()
+	valid2ID := testrand.NodeID()
+	missingID := testrand.NodeID()
 	address := &pb.NodeAddress{Address: "127.0.0.1:0"}
-
-	_, _ = rand.Read(valid1ID[:])
-	_, _ = rand.Read(valid2ID[:])
-	_, _ = rand.Read(missingID[:])
 
 	nodeSelectionConfig := testNodeSelectionConfig(0, 0, false)
 	cache := overlay.NewCache(zaptest.NewLogger(t), store, nodeSelectionConfig)
@@ -205,8 +199,8 @@ func TestRandomizedSelection(t *testing.T) {
 
 		// put nodes in cache
 		for i := 0; i < totalNodes; i++ {
-			newID := storj.NodeID{}
-			_, _ = rand.Read(newID[:])
+			newID := testrand.NodeID()
+
 			err := cache.UpdateAddress(ctx, &pb.Node{Id: newID}, defaults)
 			require.NoError(t, err)
 			_, err = cache.UpdateNodeInfo(ctx, newID, &pb.InfoResponse{
