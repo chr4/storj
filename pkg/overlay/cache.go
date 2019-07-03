@@ -278,11 +278,7 @@ func (cache *Cache) KnownUnreliableOrOffline(ctx context.Context, nodeIds storj.
 func (cache *Cache) Reliable(ctx context.Context) (nodes storj.NodeIDList, err error) {
 	defer mon.Task()(&ctx)(&err)
 	criteria := &NodeCriteria{
-		AuditCount:         cache.preferences.AuditCount,
-		AuditSuccessRatio:  cache.preferences.AuditSuccessRatio,
-		OnlineWindow:       cache.preferences.OnlineWindow,
-		UptimeCount:        cache.preferences.UptimeCount,
-		UptimeSuccessRatio: cache.preferences.UptimeRatio,
+		OnlineWindow: cache.preferences.OnlineWindow,
 	}
 	return cache.db.Reliable(ctx, criteria)
 }
