@@ -36,7 +36,7 @@ func (cache *ReliableCache) LastUpdate() time.Time { return cache.lastUpdate }
 // MissingPieces returns piece indices that are unreliable with the given staleness period.
 func (cache *ReliableCache) MissingPieces(ctx context.Context, created time.Time, pieces []*pb.RemotePiece) ([]int32, error) {
 	if created.After(cache.lastUpdate) || time.Since(cache.lastUpdate) > cache.staleness {
-		err := cache.refresh(ctx)
+		err := cache.Refresh(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -51,8 +51,8 @@ func (cache *ReliableCache) MissingPieces(ctx context.Context, created time.Time
 	return unreliable, nil
 }
 
-// refresh refreshes the cache.
-func (cache *ReliableCache) refresh(ctx context.Context) error {
+// Refresh refreshes the cache.
+func (cache *ReliableCache) Refresh(ctx context.Context) error {
 	for id := range cache.reliable {
 		delete(cache.reliable, id)
 	}

@@ -34,6 +34,8 @@ var (
 type Config struct {
 	Interval            time.Duration `help:"how frequently checker should check for bad segments" releaseDefault:"30s" devDefault:"0h0m10s"`
 	IrreparableInterval time.Duration `help:"how frequently irrepairable checker should check for lost pieces" releaseDefault:"30m" devDefault:"0h0m5s"`
+
+	ReliableCacheStaleness time.Duration `help:"how stale reliable node cache can be" releaseDefault:"5m" devDefault:"5m"`
 }
 
 // durabilityStats remote segment information
@@ -59,20 +61,19 @@ type Checker struct {
 }
 
 // NewChecker creates a new instance of checker
-func NewChecker(metainfo *metainfo.Service, repairQueue queue.RepairQueue, overlay *overlay.Cache, irrdb irreparable.DB, limit int, logger *zap.Logger, repairInterval, irreparableInterval time.Duration) *Checker {
+func NewChecker(metainfo *metainfo.Service, repairQueue queue.RepairQueue, overlay *overlay.Cache, irrdb irreparable.DB, limit int, logger *zap.Logger, config Config) *Checker {
 	// TODO: reorder arguments
-	checker := &Checker{
+	return &Checker{
 		metainfo:        metainfo,
 		lastChecked:     "",
 		repairQueue:     repairQueue,
-		nodestate:       NewReliableCache(overlay, 5*time.Minute),
+		nodestate:       NewReliableCache(overlay, config.ReliableCacheStaleness),
 		irrdb:           irrdb,
 		logger:          logger,
-		Loop:            *sync2.NewCycle(repairInterval),
-		IrreparableLoop: *sync2.NewCycle(irreparableInterval),
+		Loop:            *sync2.NewCycle(config.Interval),
+		IrreparableLoop: *sync2.NewCycle(config.IrreparableInterval),
 		monStats:        durabilityStats{},
 	}
-	return checker
 }
 
 // Run the checker loop
@@ -90,6 +91,11 @@ func (checker *Checker) Run(ctx context.Context) (err error) {
 	})
 
 	return group.Wait()
+}
+
+// RefreshReliableCache forces refreshing node online status cache.
+func (checker *Checker) RefreshReliableCache(ctx context.Context) error {
+	return checker.nodestate.Refresh(ctx)
 }
 
 // Close halts the Checker loop
